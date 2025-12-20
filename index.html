@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roku Remote</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Roku Remote</h1>
+      <div class="device-selector">
+        <label for="device-select">Device:</label>
+        <select id="device-select">
+          <option value="">Searching...</option>
+        </select>
+        <button id="refresh-devices" class="btn-small">Refresh</button>
+      </div>
+    </header>
+
+    <div class="main-content">
+      <!-- Remote Control Section -->
+      <div class="remote-section">
+        <h2>Remote Control</h2>
+        
+        <div class="remote-control">
+          <!-- Power and Home Row -->
+          <div class="button-row">
+            <button class="btn btn-control" data-key="Power">Power</button>
+            <button class="btn btn-control" data-key="Home">Home</button>
+            <button class="btn btn-control" data-key="Back">Back</button>
+          </div>
+
+          <!-- Navigation Pad -->
+          <div class="nav-pad">
+            <button class="btn btn-nav btn-up" data-key="Up">▲</button>
+            <div class="nav-middle">
+              <button class="btn btn-nav btn-left" data-key="Left">◀</button>
+              <button class="btn btn-select" data-key="Select">OK</button>
+              <button class="btn btn-nav btn-right" data-key="Right">▶</button>
+            </div>
+            <button class="btn btn-nav btn-down" data-key="Down">▼</button>
+          </div>
+
+          <!-- Playback Controls -->
+          <div class="playback-controls">
+            <div class="button-row">
+              <button class="btn btn-media" data-key="Rev">⏪</button>
+              <button class="btn btn-media" data-key="Play" id="play-pause-toggle">▶/⏸</button>
+              <button class="btn btn-media" data-key="Fwd">⏩</button>
+            </div>
+            <div class="button-row">
+              <button class="btn btn-media" data-key="InstantReplay">⏮</button>
+              <button class="btn btn-media" data-key="Info">★</button>
+              <button class="btn btn-media" data-key="Search">🔍</button>
+            </div>
+          </div>
+
+          <!-- Volume Controls -->
+          <div class="volume-controls">
+            <h3>Volume</h3>
+            <div class="button-row">
+              <button class="btn btn-volume" data-key="VolumeDown">Vol -</button>
+              <button class="btn btn-volume" data-key="VolumeMute">Mute</button>
+              <button class="btn btn-volume" data-key="VolumeUp">Vol +</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Apps Section -->
+      <div class="apps-section">
+        <h2>Installed Apps</h2>
+        <button id="refresh-apps" class="btn-small">Refresh Apps</button>
+        <div id="apps-container" class="apps-grid">
+          <p>Loading apps...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span id="status-message">Ready</span>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
