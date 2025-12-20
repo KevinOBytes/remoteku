@@ -8,8 +8,9 @@ function createWindow() {
     width: 800,
     height: 900,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
     },
     resizable: true,
     title: 'Roku Remote'

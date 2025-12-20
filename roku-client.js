@@ -1,5 +1,6 @@
 const axios = require('axios');
 const dgram = require('dgram');
+const { XMLParser } = require('fast-xml-parser');
 
 class RokuClient {
   constructor() {
@@ -81,13 +82,13 @@ class RokuClient {
         timeout: 5000
       });
       
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(response.data, 'text/xml');
+      const parser = new XMLParser();
+      const result = parser.parse(response.data);
       
       return {
-        friendlyName: xmlDoc.getElementsByTagName('friendly-device-name')[0]?.textContent || 'Roku Device',
-        modelName: xmlDoc.getElementsByTagName('model-name')[0]?.textContent || 'Unknown',
-        serialNumber: xmlDoc.getElementsByTagName('serial-number')[0]?.textContent || 'Unknown'
+        friendlyName: result['device-info']?.['friendly-device-name'] || 'Roku Device',
+        modelName: result['device-info']?.['model-name'] || 'Unknown',
+        serialNumber: result['device-info']?.['serial-number'] || 'Unknown'
       };
     } catch (error) {
       return {
@@ -109,17 +110,21 @@ class RokuClient {
         timeout: 5000
       });
       
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(response.data, 'text/xml');
-      const appElements = xmlDoc.getElementsByTagName('app');
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '@_'
+      });
+      const result = parser.parse(response.data);
       
       const apps = [];
-      for (let i = 0; i < appElements.length; i++) {
-        const app = appElements[i];
+      const appList = result.apps?.app || [];
+      const appArray = Array.isArray(appList) ? appList : [appList];
+      
+      for (const app of appArray) {
         apps.push({
-          id: app.getAttribute('id'),
-          name: app.textContent,
-          version: app.getAttribute('version')
+          id: app['@_id'],
+          name: app['#text'] || app,
+          version: app['@_version']
         });
       }
       
