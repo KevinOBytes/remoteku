@@ -1,7 +1,5 @@
-const RokuClient = require('./roku-client');
-
-// Initialize Roku client
-const rokuClient = new RokuClient();
+// Use the exposed Roku API from preload script
+const rokuAPI = window.rokuAPI;
 
 // DOM elements
 const deviceSelect = document.getElementById('device-select');
@@ -30,7 +28,7 @@ async function discoverDevices() {
   deviceSelect.innerHTML = '<option value="">Searching...</option>';
   
   try {
-    const devices = await rokuClient.discoverDevices();
+    const devices = await rokuAPI.discoverDevices();
     
     if (devices.length === 0) {
       deviceSelect.innerHTML = '<option value="">No devices found</option>';
@@ -48,7 +46,7 @@ async function discoverDevices() {
     
     // Select first device by default
     deviceSelect.value = '0';
-    rokuClient.setDevice(devices[0]);
+    rokuAPI.setDevice(devices[0]);
     showStatus(`Connected to ${devices[0].friendlyName}`);
     
     // Load apps for the first device
@@ -63,10 +61,10 @@ async function discoverDevices() {
 // Handle device selection change
 deviceSelect.addEventListener('change', (e) => {
   const index = parseInt(e.target.value);
-  const devices = rokuClient.getDevices();
+  const devices = rokuAPI.getDevices();
   
   if (devices[index]) {
-    rokuClient.setDevice(devices[index]);
+    rokuAPI.setDevice(devices[index]);
     showStatus(`Switched to ${devices[index].friendlyName}`);
     loadApps();
   }
@@ -82,7 +80,7 @@ async function loadApps() {
   appsContainer.innerHTML = '<p>Loading apps...</p>';
   
   try {
-    const apps = await rokuClient.getApps();
+    const apps = await rokuAPI.getApps();
     
     if (apps.length === 0) {
       appsContainer.innerHTML = '<p>No apps found</p>';
@@ -99,7 +97,7 @@ async function loadApps() {
       
       tile.addEventListener('click', async () => {
         showStatus(`Launching ${app.name}...`, 0);
-        const success = await rokuClient.launchApp(app.id);
+        const success = await rokuAPI.launchApp(app.id);
         if (success) {
           showStatus(`Launched ${app.name}`);
         } else {
@@ -127,15 +125,15 @@ document.querySelectorAll('.btn[data-key]').forEach(button => {
     
     // Special handling for play/pause toggle
     if (e.target.id === 'play-pause-toggle') {
-      const toggleKey = isPlaying ? 'Play' : 'Play';
+      const toggleKey = isPlaying ? 'Pause' : 'Play';
       isPlaying = !isPlaying;
       showStatus(`Sending ${toggleKey}...`, 1000);
-      await rokuClient.sendKey(toggleKey);
+      await rokuAPI.sendKey(toggleKey);
       return;
     }
     
     showStatus(`Sending ${key}...`, 1000);
-    const success = await rokuClient.sendKey(key);
+    const success = await rokuAPI.sendKey(key);
     
     if (!success) {
       showStatus(`Failed to send ${key}`);
@@ -165,7 +163,7 @@ document.addEventListener('keydown', (e) => {
   const key = keyMap[e.key];
   if (key) {
     e.preventDefault();
-    rokuClient.sendKey(key);
+    rokuAPI.sendKey(key);
     showStatus(`Sent ${key}`, 1000);
   }
 });

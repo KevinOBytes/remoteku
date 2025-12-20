@@ -7,13 +7,18 @@
     "start": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["roku", "remote", "electron"],
+  "keywords": [
+    "roku",
+    "remote",
+    "electron"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "electron": "^39.2.7"
   },
   "dependencies": {
-    "axios": "^1.13.2"
+    "axios": "^1.13.2",
+    "fast-xml-parser": "^5.3.3"
   }
 }
