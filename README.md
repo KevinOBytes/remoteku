@@ -75,11 +75,19 @@ This application uses the Roku External Control Protocol (ECP) API to communicat
 - App queries via HTTP GET requests
 
 ### Architecture
-- **main.js**: Electron main process
-- **renderer.js**: UI logic and event handling
-- **roku-client.js**: Roku API client for discovery and control
+- **main.js**: Electron main process with secure window configuration
+- **preload.js**: Context bridge for secure IPC between main and renderer processes
+- **renderer.js**: UI logic and event handling (runs in renderer process)
+- **roku-client.js**: Roku API client for discovery and control (runs in main process)
 - **index.html**: Main UI structure
 - **styles.css**: Application styling
+
+### Security
+This application implements Electron security best practices:
+- Context isolation enabled
+- Node integration disabled in renderer
+- Secure IPC via contextBridge
+- No direct access to Node.js APIs from renderer
 
 ## Development
 
