@@ -84,10 +84,13 @@ class RokuClient {
             socket.addMembership(address);
           }
         } catch (err) {
-          console.warn(
-            'Failed to join SSDP multicast group - discovery may not work properly:',
-            err.message
-          );
+          // Only warn for failures when using the default SSDP multicast address.
+          if (isMulticastTarget && address === RokuClient.SSDP_ADDRESS) {
+            console.warn(
+              'Failed to join SSDP multicast group - discovery may not work properly:',
+              err.message
+            );
+          }
         }
         socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
           if (err && !isSettled) {
