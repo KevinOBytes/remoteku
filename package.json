@@ -1,0 +1,24 @@
+{
+  "name": "remoteku",
+  "version": "1.0.0",
+  "description": "A Roku Remote Control Electron Application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "roku",
+    "remote",
+    "electron"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^39.2.7"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "fast-xml-parser": "^5.3.3"
+  }
+}
