@@ -92,3 +92,70 @@ test('discoverDevices finds Roku device and supports basic control', async (t) =
   assert.deepEqual(launches, ['1']);
   assert.deepEqual(keypresses, ['Home']);
 });
+
+test('discoverDevices returns empty when no devices respond', async () => {
+  const client = new RokuClient();
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 65530,
+    discoveryTimeout: 100
+  });
+
+  assert.equal(devices.length, 0);
+  assert.equal(client.getCurrentDevice(), null);
+});
+
+test('discoverDevices adds device even when device-info fails', async (t) => {
+  const udpServer = dgram.createSocket('udp4');
+  const httpServer = http.createServer((req, res) => {
+    if (req.url === '/query/device-info') {
+      res.writeHead(500);
+      res.end();
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) => udpServer.bind(0, '127.0.0.1', resolve));
+
+  const httpPort = httpServer.address().port;
+  const httpHost = `http://127.0.0.1:${httpPort}`;
+
+  udpServer.on('message', (msg, rinfo) => {
+    const message = msg.toString();
+    if (!message.includes('M-SEARCH') || !message.toLowerCase().includes('roku:ecp')) {
+      return;
+    }
+
+    const response = Buffer.from(
+      'HTTP/1.1 200 OK\r\n' +
+      'CACHE-CONTROL: max-age=300\r\n' +
+      'EXT: \r\n' +
+      `LOCATION: ${httpHost}\r\n` +
+      'ST: roku:ecp\r\n' +
+      'USN: uuid:roku:ecp:mock\r\n\r\n'
+    );
+
+    udpServer.send(response, 0, response.length, rinfo.port, rinfo.address);
+  });
+
+  t.after(async () => {
+    await Promise.all([
+      new Promise((resolve) => udpServer.close(resolve)),
+      new Promise((resolve) => httpServer.close(resolve))
+    ]);
+  });
+
+  const client = new RokuClient();
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: udpServer.address().port,
+    discoveryTimeout: 200
+  });
+
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0].friendlyName, 'Roku Device');
+  assert.equal(devices[0].host, httpHost);
+});
