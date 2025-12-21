@@ -9,11 +9,12 @@ const appsContainer = document.getElementById('apps-container');
 const statusMessage = document.getElementById('status-message');
 const playPauseToggle = document.getElementById('play-pause-toggle');
 
-// State
-let isPlaying = false;
-
 // Configuration
 const STATUS_DISPLAY_DURATION = 3000;
+const KEY_PRESS_FEEDBACK_DURATION = 1000;
+
+// State
+let isPlaying = false;
 
 // Status message helper
 function showStatus(message, duration = STATUS_DISPLAY_DURATION) {
@@ -97,14 +98,25 @@ async function loadApps() {
       tile.textContent = app.name;
       tile.title = `${app.name} (v${app.version})`;
       tile.dataset.appId = app.id;
+      tile.setAttribute('tabindex', '0');
+      tile.setAttribute('role', 'button');
       
-      tile.addEventListener('click', async () => {
+      const launchApp = async () => {
         showStatus(`Launching ${app.name}...`, 0);
         const success = await rokuAPI.launchApp(app.id);
         if (success) {
           showStatus(`Launched ${app.name}`);
         } else {
           showStatus(`Failed to launch ${app.name}`);
+        }
+      };
+      
+      tile.addEventListener('click', launchApp);
+      
+      tile.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          launchApp();
         }
       });
       
@@ -127,15 +139,20 @@ document.querySelectorAll('.btn[data-key]').forEach(button => {
     const key = e.target.dataset.key;
     
     // Special handling for play/pause toggle
+    // Note: State is tracked locally and may not reflect actual Roku device state
+    // if controlled by physical remote or another app
     if (e.target.id === 'play-pause-toggle') {
       const toggleKey = isPlaying ? 'Pause' : 'Play';
       isPlaying = !isPlaying;
-      showStatus(`Sending ${toggleKey}...`, 1000);
+      // Update button display
+      e.target.textContent = isPlaying ? '⏸' : '▶';
+      e.target.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+      showStatus(`Sending ${toggleKey}...`, KEY_PRESS_FEEDBACK_DURATION);
       await rokuAPI.sendKey(toggleKey);
       return;
     }
     
-    showStatus(`Sending ${key}...`, 1000);
+    showStatus(`Sending ${key}...`, KEY_PRESS_FEEDBACK_DURATION);
     const success = await rokuAPI.sendKey(key);
     
     if (!success) {
@@ -159,14 +176,13 @@ document.addEventListener('keydown', (e) => {
     'Enter': 'Select',
     ' ': 'Play',
     'Backspace': 'Back',
-    'Home': 'Home',
-    'Escape': 'Home'
+    'Escape': 'Back'
   };
   
   const key = keyMap[e.key];
   if (key) {
     e.preventDefault();
     rokuAPI.sendKey(key);
-    showStatus(`Sent ${key}`, 1000);
+    showStatus(`Sent ${key}`, KEY_PRESS_FEEDBACK_DURATION);
   }
 });
