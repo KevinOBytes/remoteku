@@ -30,12 +30,12 @@ class RokuClient {
       const isMulticastTarget = RokuClient.isMulticastAddress(address);
       
       const ssdpMessage = Buffer.from(
-         'M-SEARCH * HTTP/1.1\r\n' +
-         `HOST: ${address}:${port}\r\n` +
-         'MAN: "ssdp:discover"\r\n' +
-         'MX: 3\r\n' +
-         'ST: roku:ecp\r\n\r\n'
-       );
+        'M-SEARCH * HTTP/1.1\r\n' +
+        `HOST: ${address}:${port}\r\n` +
+        'MAN: "ssdp:discover"\r\n' +
+        'MX: 3\r\n' +
+        'ST: roku:ecp\r\n\r\n'
+      );
 
       const messageHandler = async (msg, rinfo) => {
         const message = msg.toString();
