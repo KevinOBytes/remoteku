@@ -115,7 +115,7 @@ class RokuClient {
           }
           resolve(devices);
         }
-       }, discoveryTimeout);
+      }, discoveryTimeout);
     });
   }
 
