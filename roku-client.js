@@ -13,8 +13,8 @@ class RokuClient {
   static SSDP_PORT = 1900;
   static DISCOVERY_TIMEOUT = 3000;
   static API_TIMEOUT = 5000;
-  static MULTICAST_FIRST_OCTET_MIN = 224;
-  static MULTICAST_FIRST_OCTET_MAX = 239;
+  static MULTICAST_RANGE_START = 224;
+  static MULTICAST_RANGE_END = 239;
 
   // Discover Roku devices on the network using SSDP
   async discoverDevices({
@@ -253,8 +253,8 @@ class RokuClient {
     }
 
     const firstOctet = Number(octets[0]);
-    return firstOctet >= RokuClient.MULTICAST_FIRST_OCTET_MIN &&
-      firstOctet <= RokuClient.MULTICAST_FIRST_OCTET_MAX;
+    return firstOctet >= RokuClient.MULTICAST_RANGE_START &&
+      firstOctet <= RokuClient.MULTICAST_RANGE_END;
   }
 }
 
