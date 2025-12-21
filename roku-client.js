@@ -2,8 +2,6 @@ const axios = require('axios');
 const dgram = require('dgram');
 const { XMLParser } = require('fast-xml-parser');
 
-const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
-
 class RokuClient {
   constructor() {
     this.devices = [];
@@ -15,18 +13,25 @@ class RokuClient {
   static SSDP_PORT = 1900;
   static DISCOVERY_TIMEOUT = 3000;
   static API_TIMEOUT = 5000;
+  static MULTICAST_RANGE_START = 224;
+  static MULTICAST_RANGE_END = 239;
 
   // Discover Roku devices on the network using SSDP
-  async discoverDevices() {
+  async discoverDevices({
+    address = RokuClient.SSDP_ADDRESS,
+    port = RokuClient.SSDP_PORT,
+    discoveryTimeout = RokuClient.DISCOVERY_TIMEOUT
+  } = {}) {
     return new Promise((resolve, reject) => {
       const devices = [];
       const pendingRequests = [];
       const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       let isSettled = false;
+      const isMulticastTarget = RokuClient.isMulticastAddress(address);
       
       const ssdpMessage = Buffer.from(
         'M-SEARCH * HTTP/1.1\r\n' +
-        `HOST: ${RokuClient.SSDP_ADDRESS}:${RokuClient.SSDP_PORT}\r\n` +
+        `HOST: ${address}:${port}\r\n` +
         'MAN: "ssdp:discover"\r\n' +
         'MX: 3\r\n' +
         'ST: roku:ecp\r\n\r\n'
@@ -75,21 +80,19 @@ class RokuClient {
 
       socket.bind(() => {
         try {
-          socket.addMembership(RokuClient.SSDP_ADDRESS);
-        } catch (err) {
-          if (!isSettled && PERMISSION_ERROR_CODES.has(err?.code)) {
-            isSettled = true;
-            socket.removeListener('message', messageHandler);
-            socket.close();
-            reject(err);
-            return;
+          if (isMulticastTarget) {
+            socket.addMembership(address);
           }
-          console.warn(
-            'Failed to join SSDP multicast group - discovery may not work properly:',
-            err.message
-          );
+        } catch (err) {
+          // Only warn for failures when using the default SSDP multicast address.
+          if (isMulticastTarget && address === RokuClient.SSDP_ADDRESS) {
+            console.warn(
+              'Failed to join SSDP multicast group - discovery may not work properly:',
+              err.message
+            );
+          }
         }
-        socket.send(ssdpMessage, 0, ssdpMessage.length, RokuClient.SSDP_PORT, RokuClient.SSDP_ADDRESS, (err) => {
+        socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
           if (err && !isSettled) {
             isSettled = true;
             socket.removeListener('message', messageHandler);
@@ -115,7 +118,7 @@ class RokuClient {
           }
           resolve(devices);
         }
-      }, RokuClient.DISCOVERY_TIMEOUT);
+      }, discoveryTimeout);
     });
   }
 
@@ -226,6 +229,32 @@ class RokuClient {
   // Get all discovered devices
   getDevices() {
     return this.devices;
+  }
+
+  static isMulticastAddress(address) {
+    if (typeof address !== 'string') {
+      return false;
+    }
+
+    const octets = address.split('.');
+    if (octets.length !== 4) {
+      return false;
+    }
+
+    for (const octet of octets) {
+      // Ensure each octet is a decimal integer between 0 and 255
+      if (!/^(0|[1-9]\d{0,2})$/.test(octet)) {
+        return false;
+      }
+      const value = Number(octet);
+      if (!Number.isInteger(value) || value < 0 || value > 255) {
+        return false;
+      }
+    }
+
+    const firstOctet = Number(octets[0]);
+    return firstOctet >= RokuClient.MULTICAST_RANGE_START &&
+      firstOctet <= RokuClient.MULTICAST_RANGE_END;
   }
 }
 
