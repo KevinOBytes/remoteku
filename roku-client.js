@@ -15,22 +15,29 @@ class RokuClient {
   static SSDP_PORT = 1900;
   static DISCOVERY_TIMEOUT = 3000;
   static API_TIMEOUT = 5000;
+  static MULTICAST_FIRST_OCTET_MIN = 224;
+  static MULTICAST_FIRST_OCTET_MAX = 239;
 
   // Discover Roku devices on the network using SSDP
-  async discoverDevices() {
+  async discoverDevices({
+    address = RokuClient.SSDP_ADDRESS,
+    port = RokuClient.SSDP_PORT,
+    discoveryTimeout = RokuClient.DISCOVERY_TIMEOUT
+  } = {}) {
     return new Promise((resolve, reject) => {
       const devices = [];
       const pendingRequests = [];
       const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       let isSettled = false;
+      const isMulticastTarget = RokuClient.isMulticastAddress(address);
       
       const ssdpMessage = Buffer.from(
-        'M-SEARCH * HTTP/1.1\r\n' +
-        `HOST: ${RokuClient.SSDP_ADDRESS}:${RokuClient.SSDP_PORT}\r\n` +
-        'MAN: "ssdp:discover"\r\n' +
-        'MX: 3\r\n' +
-        'ST: roku:ecp\r\n\r\n'
-      );
+         'M-SEARCH * HTTP/1.1\r\n' +
+         `HOST: ${address}:${port}\r\n` +
+         'MAN: "ssdp:discover"\r\n' +
+         'MX: 3\r\n' +
+         'ST: roku:ecp\r\n\r\n'
+       );
 
       const messageHandler = async (msg, rinfo) => {
         const message = msg.toString();
@@ -75,21 +82,16 @@ class RokuClient {
 
       socket.bind(() => {
         try {
-          socket.addMembership(RokuClient.SSDP_ADDRESS);
-        } catch (err) {
-          if (!isSettled && PERMISSION_ERROR_CODES.has(err?.code)) {
-            isSettled = true;
-            socket.removeListener('message', messageHandler);
-            socket.close();
-            reject(err);
-            return;
+          if (isMulticastTarget) {
+            socket.addMembership(address);
           }
+        } catch (err) {
           console.warn(
             'Failed to join SSDP multicast group - discovery may not work properly:',
             err.message
           );
         }
-        socket.send(ssdpMessage, 0, ssdpMessage.length, RokuClient.SSDP_PORT, RokuClient.SSDP_ADDRESS, (err) => {
+        socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
           if (err && !isSettled) {
             isSettled = true;
             socket.removeListener('message', messageHandler);
@@ -115,7 +117,7 @@ class RokuClient {
           }
           resolve(devices);
         }
-      }, RokuClient.DISCOVERY_TIMEOUT);
+       }, discoveryTimeout);
     });
   }
 
@@ -226,6 +228,13 @@ class RokuClient {
   // Get all discovered devices
   getDevices() {
     return this.devices;
+  }
+
+  static isMulticastAddress(address) {
+    const firstOctet = Number(address?.split?.('.')?.[0]);
+    return Number.isFinite(firstOctet) &&
+      firstOctet >= RokuClient.MULTICAST_FIRST_OCTET_MIN &&
+      firstOctet <= RokuClient.MULTICAST_FIRST_OCTET_MAX;
   }
 }
 
