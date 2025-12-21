@@ -2,6 +2,8 @@ const axios = require('axios');
 const dgram = require('dgram');
 const { XMLParser } = require('fast-xml-parser');
 
+const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
+
 class RokuClient {
   constructor() {
     this.devices = [];
@@ -75,6 +77,13 @@ class RokuClient {
         try {
           socket.addMembership(RokuClient.SSDP_ADDRESS);
         } catch (err) {
+          if (!isSettled && PERMISSION_ERROR_CODES.has(err?.code)) {
+            isSettled = true;
+            socket.removeListener('message', messageHandler);
+            socket.close();
+            reject(err);
+            return;
+          }
           console.warn(
             'Failed to join SSDP multicast group - discovery may not work properly:',
             err.message
