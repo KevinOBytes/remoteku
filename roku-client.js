@@ -19,7 +19,7 @@ class RokuClient {
     return new Promise((resolve, reject) => {
       const devices = [];
       const pendingRequests = [];
-      const socket = dgram.createSocket('udp4');
+      const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       let isSettled = false;
       
       const ssdpMessage = Buffer.from(
@@ -72,7 +72,11 @@ class RokuClient {
       });
 
       socket.bind(() => {
-        socket.addMembership(RokuClient.SSDP_ADDRESS);
+        try {
+          socket.addMembership(RokuClient.SSDP_ADDRESS);
+        } catch (err) {
+          console.warn('Unable to join SSDP multicast group, continuing with unicast responses only:', err.message);
+        }
         socket.send(ssdpMessage, 0, ssdpMessage.length, RokuClient.SSDP_PORT, RokuClient.SSDP_ADDRESS, (err) => {
           if (err && !isSettled) {
             isSettled = true;
