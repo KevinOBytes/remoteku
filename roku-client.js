@@ -76,7 +76,7 @@ class RokuClient {
           socket.addMembership(RokuClient.SSDP_ADDRESS);
         } catch (err) {
           console.warn(
-            'Unable to join SSDP multicast group (some networks/devices may not respond to discovery):',
+            'Failed to join SSDP multicast group - discovery may not work properly:',
             err.message
           );
         }
