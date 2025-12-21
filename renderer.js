@@ -63,7 +63,7 @@ async function discoverDevices() {
     const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
     const permissionBlocked = PERMISSION_ERROR_CODES.has(error?.code);
     const statusText = permissionBlocked
-      ? 'Discovery blocked - allow local network access or check firewall'
+      ? 'Discovery blocked - network permissions required (check firewall or run with appropriate privileges)'
       : 'Error discovering devices';
     deviceSelect.innerHTML = `<option value="">${statusText}</option>`;
     showStatus(statusText);
