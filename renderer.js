@@ -60,7 +60,8 @@ async function discoverDevices() {
     loadApps();
   } catch (error) {
     console.error('Error discovering devices:', error);
-    const permissionBlocked = error?.code === 'EACCES' || error?.code === 'EPERM';
+    const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
+    const permissionBlocked = PERMISSION_ERROR_CODES.has(error?.code);
     const statusText = permissionBlocked
       ? 'Discovery blocked - allow local network access or check firewall'
       : 'Error discovering devices';

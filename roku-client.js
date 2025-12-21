@@ -75,7 +75,10 @@ class RokuClient {
         try {
           socket.addMembership(RokuClient.SSDP_ADDRESS);
         } catch (err) {
-          console.warn('Unable to join SSDP multicast group, continuing with unicast responses only:', err.message);
+          console.warn(
+            'Unable to join SSDP multicast group (some networks/devices may not respond to discovery):',
+            err.message
+          );
         }
         socket.send(ssdpMessage, 0, ssdpMessage.length, RokuClient.SSDP_PORT, RokuClient.SSDP_ADDRESS, (err) => {
           if (err && !isSettled) {
