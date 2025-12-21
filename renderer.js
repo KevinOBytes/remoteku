@@ -60,8 +60,12 @@ async function discoverDevices() {
     loadApps();
   } catch (error) {
     console.error('Error discovering devices:', error);
-    deviceSelect.innerHTML = '<option value="">Error discovering devices</option>';
-    showStatus('Error discovering devices');
+    const permissionBlocked = error?.code === 'EACCES' || error?.code === 'EPERM';
+    const statusText = permissionBlocked
+      ? 'Discovery blocked - allow local network access or check firewall'
+      : 'Error discovering devices';
+    deviceSelect.innerHTML = `<option value="">${statusText}</option>`;
+    showStatus(statusText);
   }
 }
 
