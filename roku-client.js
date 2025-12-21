@@ -2,8 +2,6 @@ const axios = require('axios');
 const dgram = require('dgram');
 const { XMLParser } = require('fast-xml-parser');
 
-const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
-
 class RokuClient {
   constructor() {
     this.devices = [];
@@ -231,7 +229,7 @@ class RokuClient {
   }
 
   static isMulticastAddress(address) {
-    const firstOctet = Number(address?.split?.('.')?.[0]);
+    const firstOctet = Number(address?.split('.')?.[0]);
     return Number.isFinite(firstOctet) &&
       firstOctet >= RokuClient.MULTICAST_FIRST_OCTET_MIN &&
       firstOctet <= RokuClient.MULTICAST_FIRST_OCTET_MAX;
