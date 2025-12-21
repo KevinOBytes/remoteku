@@ -232,9 +232,28 @@ class RokuClient {
   }
 
   static isMulticastAddress(address) {
-    const firstOctet = Number(address?.split('.')?.[0]);
-    return Number.isFinite(firstOctet) &&
-      firstOctet >= RokuClient.MULTICAST_FIRST_OCTET_MIN &&
+    if (typeof address !== 'string') {
+      return false;
+    }
+
+    const octets = address.split('.');
+    if (octets.length !== 4) {
+      return false;
+    }
+
+    for (const octet of octets) {
+      // Ensure each octet is a decimal integer between 0 and 255
+      if (!/^(0|[1-9]\d{0,2})$/.test(octet)) {
+        return false;
+      }
+      const value = Number(octet);
+      if (!Number.isInteger(value) || value < 0 || value > 255) {
+        return false;
+      }
+    }
+
+    const firstOctet = Number(octets[0]);
+    return firstOctet >= RokuClient.MULTICAST_FIRST_OCTET_MIN &&
       firstOctet <= RokuClient.MULTICAST_FIRST_OCTET_MAX;
   }
 }
