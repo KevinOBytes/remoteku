@@ -12,6 +12,7 @@ const playPauseToggle = document.getElementById('play-pause-toggle');
 // Configuration
 const STATUS_DISPLAY_DURATION = 3000;
 const KEY_PRESS_FEEDBACK_DURATION = 1000;
+const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
 
 // State
 // Note: isPlaying tracks state locally and may not reflect actual Roku device state
@@ -60,8 +61,12 @@ async function discoverDevices() {
     loadApps();
   } catch (error) {
     console.error('Error discovering devices:', error);
-    deviceSelect.innerHTML = '<option value="">Error discovering devices</option>';
-    showStatus('Error discovering devices');
+    const permissionBlocked = PERMISSION_ERROR_CODES.has(error?.code);
+    const statusText = permissionBlocked
+      ? 'Discovery blocked - network permissions required (check firewall or run with appropriate privileges)'
+      : 'Error discovering devices';
+    deviceSelect.innerHTML = `<option value="">${statusText}</option>`;
+    showStatus(statusText);
   }
 }
 
