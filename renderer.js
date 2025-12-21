@@ -12,8 +12,11 @@ const playPauseToggle = document.getElementById('play-pause-toggle');
 // State
 let isPlaying = false;
 
+// Configuration
+const STATUS_DISPLAY_DURATION = 3000;
+
 // Status message helper
-function showStatus(message, duration = 3000) {
+function showStatus(message, duration = STATUS_DISPLAY_DURATION) {
   statusMessage.textContent = message;
   if (duration > 0) {
     setTimeout(() => {
