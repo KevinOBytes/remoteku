@@ -14,6 +14,9 @@ const STATUS_DISPLAY_DURATION = 3000;
 const KEY_PRESS_FEEDBACK_DURATION = 1000;
 
 // State
+// Note: isPlaying tracks state locally and may not reflect actual Roku device state
+// if controlled by physical remote or another app. Roku ECP API doesn't provide
+// real-time playback state queries.
 let isPlaying = false;
 
 // Status message helper
@@ -139,8 +142,6 @@ document.querySelectorAll('.btn[data-key]').forEach(button => {
     const key = e.target.dataset.key;
     
     // Special handling for play/pause toggle
-    // Note: State is tracked locally and may not reflect actual Roku device state
-    // if controlled by physical remote or another app
     if (e.target.id === 'play-pause-toggle') {
       const toggleKey = isPlaying ? 'Pause' : 'Play';
       isPlaying = !isPlaying;
