@@ -159,3 +159,59 @@ test('discoverDevices adds device even when device-info fails', async (t) => {
   assert.equal(devices[0].friendlyName, 'Roku Device');
   assert.equal(devices[0].host, httpHost);
 });
+
+test('discoverDevices handles SSDP responses using Unix newlines', async (t) => {
+  const udpServer = dgram.createSocket('udp4');
+  const httpServer = http.createServer((req, res) => {
+    if (req.url === '/query/device-info') {
+      res.writeHead(200, { 'Content-Type': 'application/xml' });
+      res.end('<device-info><friendly-device-name>Unix Roku</friendly-device-name><model-name>UnixModel</model-name><serial-number>unix-123</serial-number></device-info>');
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) => udpServer.bind(0, '127.0.0.1', resolve));
+
+  const httpPort = httpServer.address().port;
+  const httpHost = `http://127.0.0.1:${httpPort}`;
+
+  udpServer.on('message', (msg, rinfo) => {
+    const message = msg.toString();
+    if (!message.toLowerCase().includes('roku:ecp')) {
+      return;
+    }
+
+    const response = [
+      'HTTP/1.1 200 OK',
+      'CACHE-CONTROL: max-age=300',
+      `LOCATION: ${httpHost}`,
+      'ST: roku:ecp',
+      'USN: uuid:roku:ecp:unix',
+      ''
+    ].join('\n');
+
+    const buffer = Buffer.from(response);
+    udpServer.send(buffer, 0, buffer.length, rinfo.port, rinfo.address);
+  });
+
+  t.after(async () => {
+    await Promise.all([
+      new Promise((resolve) => udpServer.close(resolve)),
+      new Promise((resolve) => httpServer.close(resolve))
+    ]);
+  });
+
+  const client = new RokuClient();
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: udpServer.address().port,
+    discoveryTimeout: 200
+  });
+
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0].friendlyName, 'Unix Roku');
+  assert.equal(devices[0].host, httpHost);
+});
