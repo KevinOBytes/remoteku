@@ -268,9 +268,6 @@ class RokuClient {
       }
       const key = line.slice(0, separatorIndex).trim().toLowerCase();
       const value = line.slice(separatorIndex + 1).trim();
-      if (!key) {
-        continue;
-      }
       headers[key] = value;
     }
 
