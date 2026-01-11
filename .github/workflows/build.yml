@@ -15,15 +15,12 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-            build_args: "--linux"
             needs_fuse: true
           - os: macos-latest
             platform: mac
-            build_args: "--mac"
             needs_fuse: false
           - os: windows-latest
             platform: win
-            build_args: "--win"
             needs_fuse: false
 
     steps:
@@ -41,10 +38,13 @@ jobs:
 
       - name: Install libfuse2 (Linux only)
         if: matrix.needs_fuse
-        run: sudo apt-get update && sudo apt-get install -y libfuse2
+        run: |
+          # libfuse2 is required to build AppImage artifacts on Ubuntu runners
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
 
       - name: Build application
-        run: npm run dist -- ${{ matrix.build_args }}
+        run: npm run dist -- --${{ matrix.platform }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false" # disable code signing lookup in CI
 
