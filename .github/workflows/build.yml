@@ -37,7 +37,7 @@ jobs:
         run: npm ci
 
       - name: Install libfuse2 (Linux only)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y libfuse2
 
       - name: Build application
