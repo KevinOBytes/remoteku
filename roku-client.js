@@ -266,9 +266,6 @@ class RokuClient {
         continue;
       }
       const [keyPart, ...rest] = line.split(':');
-      if (typeof keyPart === 'undefined') {
-        continue;
-      }
       const key = keyPart.trim().toLowerCase();
       const value = rest.join(':').trim();
       if (!key) {
@@ -277,8 +274,9 @@ class RokuClient {
       headers[key] = value;
     }
 
-    const rokuIdentifier = `${headers.st || ''} ${headers.usn || ''}`.toLowerCase();
-    if (!rokuIdentifier.includes('roku:ecp')) {
+    const stHeader = headers.st ? headers.st.toLowerCase() : '';
+    const usnHeader = headers.usn ? headers.usn.toLowerCase() : '';
+    if (!stHeader.includes('roku:ecp') && !usnHeader.includes('roku:ecp')) {
       return null;
     }
 
