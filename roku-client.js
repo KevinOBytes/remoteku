@@ -262,15 +262,16 @@ class RokuClient {
 
     const headers = {};
     for (const line of message.split(/\r?\n/)) {
-      const separatorIndex = line.indexOf(':');
-      if (separatorIndex <= 0) {
+      if (!line.includes(':')) {
         continue;
       }
-      const key = line.slice(0, separatorIndex).trim().toLowerCase();
-      const value = line.slice(separatorIndex + 1).trim();
-      if (key) {
-        headers[key] = value;
+      const [keyPart, ...rest] = line.split(':');
+      const key = keyPart.trim().toLowerCase();
+      const value = rest.join(':').trim();
+      if (!key) {
+        continue;
       }
+      headers[key] = value;
     }
 
     const rokuIdentifier = `${headers.st || ''} ${headers.usn || ''}`.toLowerCase();
