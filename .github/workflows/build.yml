@@ -15,12 +15,15 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
+            builder_flag: --linux
             needs_fuse: true
           - os: macos-latest
             platform: mac
+            builder_flag: --mac
             needs_fuse: false
           - os: windows-latest
             platform: win
+            builder_flag: --win
             needs_fuse: false
 
     steps:
@@ -44,7 +47,7 @@ jobs:
           sudo apt-get install -y libfuse2
 
       - name: Build application
-        run: npm run dist -- --${{ matrix.platform }}
+        run: npm run dist -- ${{ matrix.builder_flag }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false" # disable code signing lookup in CI
 
