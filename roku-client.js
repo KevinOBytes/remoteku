@@ -273,8 +273,8 @@ class RokuClient {
       }
     }
 
-    const target = `${headers.st || ''} ${headers.usn || ''}`.toLowerCase();
-    if (!target.includes('roku:ecp')) {
+    const rokuIdentifier = `${headers.st || ''} ${headers.usn || ''}`.toLowerCase();
+    if (!rokuIdentifier.includes('roku:ecp')) {
       return null;
     }
 
