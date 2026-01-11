@@ -104,6 +104,11 @@ To contribute or modify:
 2. Test with `npm start`
 3. Submit a pull request
 
+## CI builds
+
+- The GitHub Actions workflow packages the app for Windows, macOS, and Linux and uploads the artifacts from the `builds` output directory.
+- macOS packages built in CI are unsigned (code signing is disabled), so macOS may show Gatekeeper warnings when opening them.
+
 ## License
 
 ISC
