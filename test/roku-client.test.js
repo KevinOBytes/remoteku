@@ -180,7 +180,7 @@ test('discoverDevices handles SSDP responses using Unix newlines', async (t) => 
 
   udpServer.on('message', (msg, rinfo) => {
     const message = msg.toString();
-    if (!message.toLowerCase().includes('roku:ecp')) {
+    if (!message.includes('M-SEARCH') || !message.toLowerCase().includes('roku:ecp')) {
       return;
     }
 
