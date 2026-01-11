@@ -159,3 +159,113 @@ test('discoverDevices adds device even when device-info fails', async (t) => {
   assert.equal(devices[0].friendlyName, 'Roku Device');
   assert.equal(devices[0].host, httpHost);
 });
+
+test('discoverDevices handles SSDP responses using Unix newlines', async (t) => {
+  const udpServer = dgram.createSocket('udp4');
+  const httpServer = http.createServer((req, res) => {
+    if (req.url === '/query/device-info') {
+      res.writeHead(200, { 'Content-Type': 'application/xml' });
+      res.end('<device-info><friendly-device-name>Unix Roku</friendly-device-name><model-name>UnixModel</model-name><serial-number>unix-123</serial-number></device-info>');
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) => udpServer.bind(0, '127.0.0.1', resolve));
+
+  const httpPort = httpServer.address().port;
+  const httpHost = `http://127.0.0.1:${httpPort}`;
+
+  udpServer.on('message', (msg, rinfo) => {
+    const message = msg.toString();
+    if (!message.includes('M-SEARCH') || !message.toLowerCase().includes('roku:ecp')) {
+      return;
+    }
+
+    const response = [
+      'HTTP/1.1 200 OK',
+      'CACHE-CONTROL: max-age=300',
+      `LOCATION: ${httpHost}`,
+      'ST: roku:ecp',
+      'USN: uuid:roku:ecp:unix',
+      ''
+    ].join('\n');
+
+    const buffer = Buffer.from(response);
+    udpServer.send(buffer, 0, buffer.length, rinfo.port, rinfo.address);
+  });
+
+  t.after(async () => {
+    await Promise.all([
+      new Promise((resolve) => udpServer.close(resolve)),
+      new Promise((resolve) => httpServer.close(resolve))
+    ]);
+  });
+
+  const client = new RokuClient();
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: udpServer.address().port,
+    discoveryTimeout: 200
+  });
+
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0].friendlyName, 'Unix Roku');
+  assert.equal(devices[0].host, httpHost);
+});
+
+test('parseSsdpResponse handles edge cases directly', async (t) => {
+  await t.test('returns null for empty or non-Roku responses', () => {
+    assert.equal(RokuClient.parseSsdpResponse(''), null);
+    const nonRoku = [
+      'HTTP/1.1 200 OK',
+      'ST: upnp:rootdevice',
+      'USN: uuid:upnp:rootdevice',
+      'LOCATION: http://192.168.1.10:8060',
+      ''
+    ].join('\r\n');
+    assert.equal(RokuClient.parseSsdpResponse(nonRoku), null);
+  });
+
+  await t.test('parses Roku ST with location containing colons', () => {
+    const response = [
+      'HTTP/1.1 200 OK',
+      'CACHE-CONTROL: max-age=300',
+      'ST: roku:ecp',
+      'LOCATION: http://10.0.0.2:8060/query/device-info',
+      ''
+    ].join('\r\n');
+    assert.deepEqual(RokuClient.parseSsdpResponse(response), {
+      location: 'http://10.0.0.2:8060/query/device-info'
+    });
+  });
+
+  await t.test('parses Roku USN even when ST is missing and ignores malformed lines', () => {
+    const response = [
+      'HTTP/1.1 200 OK',
+      'CACHE-CONTROL: max-age=300',
+      'USN: uuid:roku:ecp:device',
+      ': value without key',
+      'LOCATION: http://10.0.0.3:8060',
+      'EXTRA without colon',
+      ''
+    ].join('\n');
+    assert.deepEqual(RokuClient.parseSsdpResponse(response), {
+      location: 'http://10.0.0.3:8060'
+    });
+  });
+
+  await t.test('handles headers with multiple colons in values', () => {
+    const response = [
+      'HTTP/1.1 200 OK',
+      'ST: roku:ecp',
+      'LOCATION: http://10.0.0.4:8060/path:with:colons',
+      ''
+    ].join('\r\n');
+    assert.deepEqual(RokuClient.parseSsdpResponse(response), {
+      location: 'http://10.0.0.4:8060/path:with:colons'
+    });
+  });
+});

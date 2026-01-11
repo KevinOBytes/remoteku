@@ -39,32 +39,30 @@ class RokuClient {
 
       const messageHandler = async (msg, rinfo) => {
         const message = msg.toString();
-        if (message.includes('roku:ecp')) {
-          // Extract location from SSDP response
-          const locationMatch = message.match(/LOCATION: (.*)\r\n/i);
-          if (locationMatch) {
-            const locationUrl = locationMatch[1].trim();
-            const devicePromise = (async () => {
-              try {
-                const url = new URL(locationUrl);
-                const host = `${url.protocol}//${url.host}`;
-                const deviceInfo = await this.getDeviceInfo(host);
-                
-                // Avoid duplicates
-                if (!devices.find(d => d.host === host)) {
-                  devices.push({
-                    host,
-                    ip: rinfo.address,
-                    ...deviceInfo
-                  });
-                }
-              } catch (err) {
-                console.error('Error getting device info:', err.message);
-              }
-            })();
-            pendingRequests.push(devicePromise);
-          }
+        const parsed = RokuClient.parseSsdpResponse(message);
+        if (!parsed?.location) {
+          return;
         }
+
+        const devicePromise = (async () => {
+          try {
+            const url = new URL(parsed.location);
+            const host = `${url.protocol}//${url.host}`;
+            const deviceInfo = await this.getDeviceInfo(host);
+            
+            // Avoid duplicates
+            if (!devices.find(d => d.host === host)) {
+              devices.push({
+                host,
+                ip: rinfo.address,
+                ...deviceInfo
+              });
+            }
+          } catch (err) {
+            console.error('Error getting device info:', err.message);
+          }
+        })();
+        pendingRequests.push(devicePromise);
       };
 
       socket.on('message', messageHandler);
@@ -255,6 +253,37 @@ class RokuClient {
     const firstOctet = Number(octets[0]);
     return firstOctet >= RokuClient.MULTICAST_RANGE_START &&
       firstOctet <= RokuClient.MULTICAST_RANGE_END;
+  }
+
+  static parseSsdpResponse(message) {
+    if (typeof message !== 'string') {
+      return null;
+    }
+
+    const headers = {};
+    for (const line of message.split(/\r?\n/)) {
+      const separatorIndex = line.indexOf(':');
+      if (separatorIndex <= 0) {
+        continue;
+      }
+      const key = line.slice(0, separatorIndex).trim().toLowerCase();
+      const value = line.slice(separatorIndex + 1).trim();
+      headers[key] = value;
+    }
+
+    const stHeader = headers.st ? headers.st.toLowerCase() : '';
+    const usnHeader = headers.usn ? headers.usn.toLowerCase() : '';
+    if (!stHeader.includes('roku:ecp') && !usnHeader.includes('roku:ecp')) {
+      return null;
+    }
+
+    if (!headers.location) {
+      return null;
+    }
+
+    return {
+      location: headers.location
+    };
   }
 }
 
