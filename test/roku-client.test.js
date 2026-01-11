@@ -215,3 +215,57 @@ test('discoverDevices handles SSDP responses using Unix newlines', async (t) => 
   assert.equal(devices[0].friendlyName, 'Unix Roku');
   assert.equal(devices[0].host, httpHost);
 });
+
+test('parseSsdpResponse handles edge cases directly', async (t) => {
+  await t.test('returns null for empty or non-Roku responses', () => {
+    assert.equal(RokuClient.parseSsdpResponse(''), null);
+    const nonRoku = [
+      'HTTP/1.1 200 OK',
+      'ST: upnp:rootdevice',
+      'USN: uuid:upnp:rootdevice',
+      'LOCATION: http://192.168.1.10:8060',
+      ''
+    ].join('\r\n');
+    assert.equal(RokuClient.parseSsdpResponse(nonRoku), null);
+  });
+
+  await t.test('parses Roku ST with location containing colons', () => {
+    const response = [
+      'HTTP/1.1 200 OK',
+      'CACHE-CONTROL: max-age=300',
+      'ST: roku:ecp',
+      'LOCATION: http://10.0.0.2:8060/query/device-info',
+      ''
+    ].join('\r\n');
+    assert.deepEqual(RokuClient.parseSsdpResponse(response), {
+      location: 'http://10.0.0.2:8060/query/device-info'
+    });
+  });
+
+  await t.test('parses Roku USN even when ST is missing and ignores malformed lines', () => {
+    const response = [
+      'HTTP/1.1 200 OK',
+      'CACHE-CONTROL: max-age=300',
+      'USN: uuid:roku:ecp:device',
+      ': value without key',
+      'LOCATION: http://10.0.0.3:8060',
+      'EXTRA without colon',
+      ''
+    ].join('\n');
+    assert.deepEqual(RokuClient.parseSsdpResponse(response), {
+      location: 'http://10.0.0.3:8060'
+    });
+  });
+
+  await t.test('handles headers with multiple colons in values', () => {
+    const response = [
+      'HTTP/1.1 200 OK',
+      'ST: roku:ecp',
+      'LOCATION: http://10.0.0.4:8060/path:with:colons',
+      ''
+    ].join('\r\n');
+    assert.deepEqual(RokuClient.parseSsdpResponse(response), {
+      location: 'http://10.0.0.4:8060/path:with:colons'
+    });
+  });
+});
