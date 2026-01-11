@@ -16,12 +16,15 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             build_args: "--linux"
+            needs_fuse: true
           - os: macos-latest
             platform: mac
             build_args: "--mac"
+            needs_fuse: false
           - os: windows-latest
             platform: win
             build_args: "--win"
+            needs_fuse: false
 
     steps:
       - name: Checkout repository
@@ -37,7 +40,7 @@ jobs:
         run: npm ci
 
       - name: Install libfuse2 (Linux only)
-        if: matrix.platform == 'linux'
+        if: matrix.needs_fuse == true
         run: sudo apt-get update && sudo apt-get install -y libfuse2
 
       - name: Build application
