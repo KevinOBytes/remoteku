@@ -266,6 +266,9 @@ class RokuClient {
         continue;
       }
       const [keyPart, ...rest] = line.split(':');
+      if (typeof keyPart === 'undefined') {
+        continue;
+      }
       const key = keyPart.trim().toLowerCase();
       const value = rest.join(':').trim();
       if (!key) {
