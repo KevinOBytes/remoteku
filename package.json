@@ -41,7 +41,8 @@
     ],
     "mac": {
       "target": "dmg",
-      "identity": null
+      "identity": null,
+      "entitlements": "entitlements.mac.plist"
     },
     "win": {
       "target": "nsis"
