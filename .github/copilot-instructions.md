@@ -63,11 +63,11 @@ RemoteKu is an Electron-based desktop application for controlling Roku devices o
 - Supported platforms: macOS (DMG), Windows (NSIS), Linux (AppImage)
 
 ## File Exclusions
-When making changes, never modify or include in builds:
-- `test/` directory (excluded from builds)
-- `.github/` directory
-- `builds/` directory (output)
-- Markdown files (documentation)
+The following paths are excluded from packaged application builds (for example, electron-builder artifacts), but can be modified normally in the repository:
+- `test/` directory (tests are not bundled into production builds)
+- `.github/` directory (CI/CD and GitHub metadata, not part of the app bundle)
+- `builds/` directory (build output, not checked into packaged artifacts)
+- Markdown files (documentation, not included in the app bundle)
 
 ## Common Patterns
 - IPC communication: Use `contextBridge.exposeInMainWorld` in `preload.js` to expose a safe API, and call that API from the renderer (do not use `ipcMain`/`ipcRenderer` directly in renderer code)
