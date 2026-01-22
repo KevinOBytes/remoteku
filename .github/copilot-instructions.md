@@ -91,7 +91,7 @@ The following paths are excluded from packaged application builds (for example, 
 
 ## macOS Specific Notes
 - Network discovery requires local network permissions
-- Code signing disabled for CI builds (identity: null)
+- mac builds are unsigned by default (`identity: null` in electron-builder config); CI also sets `CSC_IDENTITY_AUTO_DISCOVERY=false`
 - Uses entitlements file: `entitlements.mac.plist`
 
 ## CI/CD
