@@ -24,6 +24,7 @@ class RokuClient {
   } = {}) {
     return new Promise((resolve, reject) => {
       const devices = [];
+      const softErrorCodes = new Set(['EACCES', 'EPERM', 'EADDRINUSE']);
       const pendingRequests = [];
       const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       let isSettled = false;
@@ -78,7 +79,6 @@ class RokuClient {
           socket.close();
 
           // Gracefully handle common permission/bind errors by resolving with no devices
-          const softErrorCodes = new Set(['EACCES', 'EPERM', 'EADDRINUSE']);
           if (softErrorCodes.has(err?.code)) {
             console.warn(
               'SSDP discovery failed due to network or socket permissions:',
@@ -90,6 +90,20 @@ class RokuClient {
           }
 
           reject(err);
+        }
+      });
+
+      socket.once('listening', () => {
+        try {
+          socket.setBroadcast(true);
+          socket.setMulticastLoopback(true);
+          socket.setMulticastTTL(2);
+        } catch (err) {
+          // Non-fatal configuration errors should not abort discovery; discovery will continue with defaults.
+          console.warn(
+            'Failed to apply SSDP socket configuration options - using defaults:',
+            err.message
+          );
         }
       });
 
@@ -112,6 +126,17 @@ class RokuClient {
             isSettled = true;
             socket.removeListener('message', messageHandler);
             socket.close();
+
+            if (softErrorCodes.has(err?.code)) {
+              console.warn(
+                'SSDP discovery failed while sending discovery packet:',
+                err.message
+              );
+              applyResults([]);
+              resolve([]);
+              return;
+            }
+
             reject(err);
           }
         });

@@ -216,6 +216,106 @@ test('discoverDevices handles SSDP responses using Unix newlines', async (t) => 
   assert.equal(devices[0].host, httpHost);
 });
 
+test('discoverDevices handles socket permission errors by resolving empty', async () => {
+  const client = new RokuClient();
+  // Bind to a privileged port to trigger EACCES on many systems without root
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 1,
+    discoveryTimeout: 100
+  });
+  assert.equal(devices.length, 0);
+  assert.equal(client.getCurrentDevice(), null);
+});
+
+test('discoverDevices handles send permission errors gracefully', async (t) => {
+  // Mock dgram to force a send error with EPERM
+  const originalCreateSocket = dgram.createSocket;
+  const fakeSocket = {
+    on: () => {},
+    once: (event, handler) => {
+      if (event === 'listening') {
+        handler();
+      }
+    },
+    bind: (cb) => cb(),
+    addMembership: () => {},
+    setBroadcast: () => {},
+    setMulticastLoopback: () => {},
+    setMulticastTTL: () => {},
+    removeListener: () => {},
+    close: () => {},
+    send: (_buf, _offset, _length, _port, _address, cb) => {
+      const err = new Error('forced send failure');
+      err.code = 'EPERM';
+      cb(err);
+    }
+  };
+
+  dgram.createSocket = () => fakeSocket;
+  t.after(() => {
+    dgram.createSocket = originalCreateSocket;
+  });
+
+  const client = new RokuClient();
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 12345,
+    discoveryTimeout: 100
+  });
+
+  assert.equal(devices.length, 0);
+  assert.equal(client.getCurrentDevice(), null);
+});
+
+test('socket configuration errors do not fail discovery', async (t) => {
+  // Mock socket methods to throw on config calls but still allow send to succeed
+  const originalCreateSocket = dgram.createSocket;
+  let sendCalled = false;
+
+  const fakeSocket = {
+    on: () => {},
+    once: (event, handler) => {
+      if (event === 'listening') {
+        handler();
+      }
+    },
+    bind: (cb) => cb(),
+    addMembership: () => {},
+    setBroadcast: () => {
+      throw new Error('broadcast fail');
+    },
+    setMulticastLoopback: () => {
+      throw new Error('loopback fail');
+    },
+    setMulticastTTL: () => {
+      throw new Error('ttl fail');
+    },
+    removeListener: () => {},
+    close: () => {},
+    send: (_buf, _offset, _length, _port, _address, cb) => {
+      sendCalled = true;
+      cb();
+    }
+  };
+
+  dgram.createSocket = () => fakeSocket;
+  t.after(() => {
+    dgram.createSocket = originalCreateSocket;
+  });
+
+  const client = new RokuClient();
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 12346,
+    discoveryTimeout: 50
+  });
+
+  assert.equal(sendCalled, true);
+  assert.equal(devices.length, 0);
+  assert.equal(client.getCurrentDevice(), null);
+});
+
 test('parseSsdpResponse handles edge cases directly', async (t) => {
   await t.test('returns null for empty or non-Roku responses', () => {
     assert.equal(RokuClient.parseSsdpResponse(''), null);
