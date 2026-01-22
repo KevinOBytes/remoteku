@@ -1,0 +1,63 @@
+name: Publish release artifacts
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            builder_flag: --linux
+            needs_fuse: true
+          - os: macos-latest
+            platform: mac
+            builder_flag: --mac
+            needs_fuse: false
+          - os: windows-latest
+            platform: win
+            builder_flag: --win
+            needs_fuse: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install libfuse2 (Linux only)
+        if: matrix.needs_fuse
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2
+
+      - name: Build application
+        run: npm run dist -- ${{ matrix.builder_flag }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            builds/*.dmg
+            builds/*.exe
+            builds/*.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

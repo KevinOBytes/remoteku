@@ -29,10 +29,17 @@ A powerful Electron-based remote control application for Roku devices, built for
    npm install
    ```
 
-3. Start the application:
+3. Start the application (from the repo root):
    ```bash
    npm start
    ```
+
+4. (Optional) Run the tests:
+   ```bash
+   npm test
+   ```
+
+> **macOS note:** Discovery uses SSDP multicast. When prompted on first launch, allow the app to access your local network in macOS privacy settings or firewall, and make sure your Mac is on the same Wi‑Fi/Ethernet network as the Roku.
 
 ## Usage
 
@@ -96,6 +103,11 @@ To contribute or modify:
 1. Make your changes to the source files
 2. Test with `npm start`
 3. Submit a pull request
+
+## CI builds
+
+- The GitHub Actions workflow packages the app for Windows, macOS, and Linux and uploads the artifacts from the `builds` output directory.
+- macOS packages built in CI are unsigned (code signing is disabled), so macOS may show Gatekeeper warnings when opening them.
 
 ## License
 

@@ -28,6 +28,10 @@ class RokuClient {
       const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       let isSettled = false;
       const isMulticastTarget = RokuClient.isMulticastAddress(address);
+      const applyResults = (results) => {
+        this.devices = results;
+        this.currentDevice = results.length > 0 ? results[0] : null;
+      };
       
       const ssdpMessage = Buffer.from(
         'M-SEARCH * HTTP/1.1\r\n' +
@@ -39,32 +43,30 @@ class RokuClient {
 
       const messageHandler = async (msg, rinfo) => {
         const message = msg.toString();
-        if (message.includes('roku:ecp')) {
-          // Extract location from SSDP response
-          const locationMatch = message.match(/LOCATION: (.*)\r\n/i);
-          if (locationMatch) {
-            const locationUrl = locationMatch[1].trim();
-            const devicePromise = (async () => {
-              try {
-                const url = new URL(locationUrl);
-                const host = `${url.protocol}//${url.host}`;
-                const deviceInfo = await this.getDeviceInfo(host);
-                
-                // Avoid duplicates
-                if (!devices.find(d => d.host === host)) {
-                  devices.push({
-                    host,
-                    ip: rinfo.address,
-                    ...deviceInfo
-                  });
-                }
-              } catch (err) {
-                console.error('Error getting device info:', err.message);
-              }
-            })();
-            pendingRequests.push(devicePromise);
-          }
+        const parsed = RokuClient.parseSsdpResponse(message);
+        if (!parsed?.location) {
+          return;
         }
+
+        const devicePromise = (async () => {
+          try {
+            const url = new URL(parsed.location);
+            const host = `${url.protocol}//${url.host}`;
+            const deviceInfo = await this.getDeviceInfo(host);
+            
+            // Avoid duplicates
+            if (!devices.find(d => d.host === host)) {
+              devices.push({
+                host,
+                ip: rinfo.address,
+                ...deviceInfo
+              });
+            }
+          } catch (err) {
+            console.error('Error getting device info:', err.message);
+          }
+        })();
+        pendingRequests.push(devicePromise);
       };
 
       socket.on('message', messageHandler);
@@ -74,6 +76,19 @@ class RokuClient {
           isSettled = true;
           socket.removeListener('message', messageHandler);
           socket.close();
+
+          // Gracefully handle common permission/bind errors by resolving with no devices
+          const softErrorCodes = new Set(['EACCES', 'EPERM', 'EADDRINUSE']);
+          if (softErrorCodes.has(err?.code)) {
+            console.warn(
+              'SSDP discovery failed due to network or socket permissions:',
+              err.message
+            );
+            applyResults([]);
+            resolve([]);
+            return;
+          }
+
           reject(err);
         }
       });
@@ -111,11 +126,8 @@ class RokuClient {
           
           // Wait for all pending device info requests to complete
           await Promise.allSettled(pendingRequests);
-          
-          this.devices = devices;
-          if (devices.length > 0) {
-            this.currentDevice = devices[0];
-          }
+
+          applyResults(devices);
           resolve(devices);
         }
       }, discoveryTimeout);
@@ -255,6 +267,37 @@ class RokuClient {
     const firstOctet = Number(octets[0]);
     return firstOctet >= RokuClient.MULTICAST_RANGE_START &&
       firstOctet <= RokuClient.MULTICAST_RANGE_END;
+  }
+
+  static parseSsdpResponse(message) {
+    if (typeof message !== 'string') {
+      return null;
+    }
+
+    const headers = {};
+    for (const line of message.split(/\r?\n/)) {
+      const separatorIndex = line.indexOf(':');
+      if (separatorIndex <= 0) {
+        continue;
+      }
+      const key = line.slice(0, separatorIndex).trim().toLowerCase();
+      const value = line.slice(separatorIndex + 1).trim();
+      headers[key] = value;
+    }
+
+    const stHeader = headers.st ? headers.st.toLowerCase() : '';
+    const usnHeader = headers.usn ? headers.usn.toLowerCase() : '';
+    if (!stHeader.includes('roku:ecp') && !usnHeader.includes('roku:ecp')) {
+      return null;
+    }
+
+    if (!headers.location) {
+      return null;
+    }
+
+    return {
+      location: headers.location
+    };
   }
 }
 
