@@ -55,6 +55,9 @@ jobs:
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: builds/**
+          files: |
+            builds/*.dmg
+            builds/*.exe
+            builds/*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
