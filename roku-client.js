@@ -33,7 +33,7 @@ class RokuClient {
         this.devices = results;
         this.currentDevice = results.length > 0 ? results[0] : null;
       };
-      
+
       const ssdpMessage = Buffer.from(
         'M-SEARCH * HTTP/1.1\r\n' +
         `HOST: ${address}:${port}\r\n` +
@@ -54,7 +54,7 @@ class RokuClient {
             const url = new URL(parsed.location);
             const host = `${url.protocol}//${url.host}`;
             const deviceInfo = await this.getDeviceInfo(host);
-            
+
             // Avoid duplicates
             if (!devices.find(d => d.host === host)) {
               devices.push({
@@ -108,19 +108,8 @@ class RokuClient {
       });
 
       socket.bind(() => {
-        try {
-          if (isMulticastTarget) {
-            socket.addMembership(address);
-          }
-        } catch (err) {
-          // Only warn for failures when using the default SSDP multicast address.
-          if (isMulticastTarget && address === RokuClient.SSDP_ADDRESS) {
-            console.warn(
-              'Failed to join SSDP multicast group - discovery may not work properly:',
-              err.message
-            );
-          }
-        }
+        // Multicast membership is not required for sending M-SEARCH
+        // and can cause EHOSTUNREACH on macOS if the route isn't set up for the random bound port.
         socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
           if (err && !isSettled) {
             isSettled = true;
@@ -148,7 +137,7 @@ class RokuClient {
           isSettled = true;
           socket.removeListener('message', messageHandler);
           socket.close();
-          
+
           // Wait for all pending device info requests to complete
           await Promise.allSettled(pendingRequests);
 
@@ -165,10 +154,10 @@ class RokuClient {
       const response = await axios.get(`${host}/query/device-info`, {
         timeout: RokuClient.API_TIMEOUT
       });
-      
+
       const parser = new XMLParser();
       const result = parser.parse(response.data);
-      
+
       return {
         friendlyName: result['device-info']?.['friendly-device-name'] || 'Roku Device',
         modelName: result['device-info']?.['model-name'] || 'Unknown',
@@ -193,17 +182,17 @@ class RokuClient {
       const response = await axios.get(`${this.currentDevice.host}/query/apps`, {
         timeout: RokuClient.API_TIMEOUT
       });
-      
+
       const parser = new XMLParser({
         ignoreAttributes: false,
         attributeNamePrefix: '@_'
       });
       const result = parser.parse(response.data);
-      
+
       const apps = [];
       const appList = result.apps?.app || [];
       const appArray = Array.isArray(appList) ? appList : [appList];
-      
+
       for (const app of appArray) {
         apps.push({
           id: app['@_id'],
@@ -211,7 +200,7 @@ class RokuClient {
           version: app['@_version']
         });
       }
-      
+
       return apps;
     } catch (error) {
       console.error('Error getting apps:', error.message);
