@@ -14,9 +14,9 @@ RemoteKu is an Electron-based desktop application for controlling Roku devices o
 
 ## Architecture
 - **main.js**: Electron main process - window management and app lifecycle
-- **preload.js**: Context bridge for secure IPC between main and renderer processes
+- **preload.js**: Context bridge for secure IPC - instantiates RokuClient and exposes safe API to renderer
 - **renderer.js**: UI logic and event handling (renderer process)
-- **roku-client.js**: Roku API client for SSDP discovery and ECP control (main process)
+- **roku-client.js**: Roku API client for SSDP discovery and ECP control (used via preload script)
 - **index.html**: Main UI structure
 - **styles.css**: Application styling
 
