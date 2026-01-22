@@ -28,7 +28,8 @@ RemoteKu is an Electron-based desktop application for controlling Roku devices o
 - Follow Electron security best practices
 
 ## Code Style and Conventions
-- Use modern JavaScript (ES6+) with CommonJS modules (`require`/`module.exports`)
+- Use modern JavaScript (ES6+) syntax
+- Use CommonJS modules (`require`/`module.exports`) for Node.js/Electron compatibility
 - Use `async/await` for asynchronous operations
 - Use `const` and `let`, avoid `var`
 - Follow Node.js error handling patterns
