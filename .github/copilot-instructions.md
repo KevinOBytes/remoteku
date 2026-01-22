@@ -70,7 +70,7 @@ When making changes, never modify or include in builds:
 - Markdown files (documentation)
 
 ## Common Patterns
-- IPC communication: Use `ipcMain` and `ipcRenderer` via contextBridge
+- IPC communication: Use `contextBridge.exposeInMainWorld` in `preload.js` to expose a safe API, and call that API from the renderer (do not use `ipcMain`/`ipcRenderer` directly in renderer code)
 - HTTP requests: Use axios with proper timeout and error handling
 - XML parsing: Use XMLParser from fast-xml-parser
 - Socket creation: Use Node.js dgram module for UDP
