@@ -72,18 +72,18 @@ class RokuClient {
 
       socket.on('message', messageHandler);
 
-       socket.on('error', (err) => {
-         if (!isSettled) {
-           isSettled = true;
-           socket.removeListener('message', messageHandler);
-           socket.close();
+      socket.on('error', (err) => {
+        if (!isSettled) {
+          isSettled = true;
+          socket.removeListener('message', messageHandler);
+          socket.close();
 
-           // Gracefully handle common permission/bind errors by resolving with no devices
-           if (softErrorCodes.has(err?.code)) {
-             console.warn(
-               'SSDP discovery failed due to network or socket permissions:',
-               err.message
-             );
+          // Gracefully handle common permission/bind errors by resolving with no devices
+          if (softErrorCodes.has(err?.code)) {
+            console.warn(
+              'SSDP discovery failed due to network or socket permissions:',
+              err.message
+            );
             applyResults([]);
             resolve([]);
             return;
@@ -100,15 +100,19 @@ class RokuClient {
           socket.setMulticastTTL(2);
         } catch (err) {
           // Non-fatal configuration errors should not abort discovery; discovery will continue with defaults.
+          console.warn(
+            'Failed to apply SSDP socket configuration options - using defaults:',
+            err.message
+          );
         }
       });
 
-       socket.bind(() => {
-         try {
-           if (isMulticastTarget) {
-             socket.addMembership(address);
-           }
-         } catch (err) {
+      socket.bind(() => {
+        try {
+          if (isMulticastTarget) {
+            socket.addMembership(address);
+          }
+        } catch (err) {
           // Only warn for failures when using the default SSDP multicast address.
           if (isMulticastTarget && address === RokuClient.SSDP_ADDRESS) {
             console.warn(
@@ -117,26 +121,26 @@ class RokuClient {
             );
           }
         }
-         socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
-           if (err && !isSettled) {
-             isSettled = true;
-             socket.removeListener('message', messageHandler);
-             socket.close();
+        socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
+          if (err && !isSettled) {
+            isSettled = true;
+            socket.removeListener('message', messageHandler);
+            socket.close();
 
-             if (softErrorCodes.has(err?.code)) {
-               console.warn(
-                 'SSDP discovery failed while sending discovery packet:',
-                 err.message
-               );
-               applyResults([]);
-               resolve([]);
-               return;
-             }
+            if (softErrorCodes.has(err?.code)) {
+              console.warn(
+                'SSDP discovery failed while sending discovery packet:',
+                err.message
+              );
+              applyResults([]);
+              resolve([]);
+              return;
+            }
 
-             reject(err);
-           }
-         });
-       });
+            reject(err);
+          }
+        });
+      });
 
       // Wait for responses and all pending device info requests
       setTimeout(async () => {
