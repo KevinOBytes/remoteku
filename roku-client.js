@@ -28,6 +28,10 @@ class RokuClient {
       const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
       let isSettled = false;
       const isMulticastTarget = RokuClient.isMulticastAddress(address);
+      const applyResults = (results) => {
+        this.devices = results;
+        this.currentDevice = results.length > 0 ? results[0] : null;
+      };
       
       const ssdpMessage = Buffer.from(
         'M-SEARCH * HTTP/1.1\r\n' +
@@ -80,8 +84,7 @@ class RokuClient {
               'SSDP discovery failed due to network or socket permissions:',
               err.message
             );
-            this.devices = [];
-            this.currentDevice = null;
+            applyResults([]);
             resolve([]);
             return;
           }
@@ -123,11 +126,8 @@ class RokuClient {
           
           // Wait for all pending device info requests to complete
           await Promise.allSettled(pendingRequests);
-          
-          this.devices = devices;
-          if (devices.length > 0) {
-            this.currentDevice = devices[0];
-          }
+
+          applyResults(devices);
           resolve(devices);
         }
       }, discoveryTimeout);
