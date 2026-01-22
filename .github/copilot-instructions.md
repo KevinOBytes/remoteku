@@ -46,12 +46,12 @@ RemoteKu is an Electron-based desktop application for controlling Roku devices o
 
 ## Roku ECP API Integration
 - Device discovery uses SSDP (Simple Service Discovery Protocol) on UDP multicast
-- Device control uses HTTP POST to Roku ECP endpoints
-- Common endpoints:
-  - `/query/device-info` - Get device information
-  - `/query/apps` - List installed apps
-  - `/keypress/{Key}` - Send remote control keys
-  - `/launch/{appId}` - Launch an app
+- Roku ECP uses HTTP: `/query/*` endpoints are fetched with GET, while `/keypress/*` and `/launch/*` endpoints use POST
+- Common endpoints (include the correct HTTP method when calling them):
+  - `/query/device-info` (GET) - Get device information
+  - `/query/apps` (GET) - List installed apps
+  - `/keypress/{Key}` (POST) - Send remote control keys
+  - `/launch/{appId}` (POST) - Launch an app
 - Parse XML responses using fast-xml-parser
 - Handle network errors gracefully
 
