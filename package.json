@@ -15,10 +15,39 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^39.2.7"
+    "electron": "^39.2.7",
+    "electron-builder": "^25.1.8"
   },
   "dependencies": {
     "axios": "^1.13.2",
     "fast-xml-parser": "^5.3.3"
+  },
+  "build": {
+    "appId": "com.kevinobytes.remoteku",
+    "productName": "RemoteKu",
+    "directories": {
+      "output": "builds"
+    },
+    "files": [
+      "**/*",
+      "!builds/**",
+      "!test/**",
+      "!tests/**",
+      "!.github/**",
+      "!.git/**",
+      "!**/*.md",
+      "!.gitignore"
+    ],
+    "mac": {
+      "target": "dmg",
+      "identity": null,
+      "entitlements": "entitlements.mac.plist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }
