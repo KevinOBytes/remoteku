@@ -72,6 +72,20 @@ class RokuClient {
           isSettled = true;
           socket.removeListener('message', messageHandler);
           socket.close();
+
+          // Gracefully handle common permission/bind errors by resolving with no devices
+          const softErrorCodes = new Set(['EACCES', 'EPERM', 'EADDRINUSE']);
+          if (softErrorCodes.has(err?.code)) {
+            console.warn(
+              'SSDP discovery failed due to network or socket permissions:',
+              err.message
+            );
+            this.devices = [];
+            this.currentDevice = null;
+            resolve([]);
+            return;
+          }
+
           reject(err);
         }
       });
