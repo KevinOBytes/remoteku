@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Expose protected methods that allow the renderer process to use
 // the Roku client running in the main process via IPC
 contextBridge.exposeInMainWorld('rokuAPI', {
-  discoverDevices: () => ipcRenderer.invoke('roku:discover'),
+  discoverDevices: (options) => ipcRenderer.invoke('roku:discover', options),
   getDevices: () => ipcRenderer.invoke('roku:get-devices'),
   setDevice: (device) => ipcRenderer.invoke('roku:set-device', device),
   getCurrentDevice: () => ipcRenderer.invoke('roku:get-current-device'),

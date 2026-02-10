@@ -106,6 +106,47 @@ test('discoverDevices returns empty when no devices respond', async () => {
   assert.equal(client.getCurrentDevice(), null);
 });
 
+test('scanLocalSubnetsForRoku finds devices on private subnet', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalMinPrefix = RokuClient.FALLBACK_SCAN_MIN_PREFIX;
+
+  os.networkInterfaces = () => ({
+    en0: [{
+      address: '192.168.1.10',
+      family: 'IPv4',
+      internal: false,
+      netmask: '255.255.255.252'
+    }]
+  });
+  RokuClient.FALLBACK_SCAN_MIN_PREFIX = 30;
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    RokuClient.FALLBACK_SCAN_MIN_PREFIX = originalMinPrefix;
+  });
+
+  const client = new RokuClient();
+  const probedHosts = [];
+  client.probeDeviceInfo = async (host) => {
+    probedHosts.push(host);
+    if (host === 'http://192.168.1.9:8060') {
+      return {
+        friendlyName: 'Fallback Roku',
+        modelName: 'FallbackModel',
+        serialNumber: 'fallback-123'
+      };
+    }
+    throw new Error('not found');
+  };
+
+  const devices = await client.scanLocalSubnetsForRoku({ timeout: 1, concurrency: 2 });
+
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0].host, 'http://192.168.1.9:8060');
+  assert.equal(devices[0].friendlyName, 'Fallback Roku');
+  assert.ok(probedHosts.includes('http://192.168.1.9:8060'));
+});
+
 test('discoverDevices adds device even when device-info fails', async (t) => {
   const udpServer = dgram.createSocket('udp4');
   const httpServer = http.createServer((req, res) => {
