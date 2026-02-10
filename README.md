@@ -14,6 +14,10 @@ A powerful Electron-based remote control application for Roku devices, built for
   - Search functionality
 - **App Launcher**: Browse and launch installed Roku apps via an intuitive tile interface
 - **Keyboard Shortcuts**: Control your Roku using arrow keys, Enter, Space, and more
+- **Connection Diagnostics**: Local IP visibility, discovery status, and device reachability testing
+- **Auto Reconnect**: Remembers the last device and reconnects on launch
+- **Audio Status (Best-effort)**: Displays volume/mute info when available from the device
+- **Reliable Commands**: Retries transient network failures for launch and keypress actions
 - **Modern UI**: Clean, responsive design with a beautiful gradient interface
 
 ## Installation
@@ -39,7 +43,8 @@ A powerful Electron-based remote control application for Roku devices, built for
    npm test
    ```
 
-> **macOS note:** Discovery uses SSDP multicast. When prompted on first launch, allow the app to access your local network in macOS privacy settings or firewall, and make sure your Mac is on the same Wi‑Fi/Ethernet network as the Roku.
+> **macOS note:** Discovery uses SSDP multicast. When prompted on first launch, allow the app to access your local network in macOS privacy settings or firewall, and make sure your Mac is on the same Wi‑Fi/Ethernet network as the Roku.  
+> If you run via `npm start`, macOS may list the permission under **Electron** (not RemoteKu) in **System Settings → Privacy & Security → Local Network**.
 
 ## Usage
 
@@ -47,6 +52,12 @@ A powerful Electron-based remote control application for Roku devices, built for
 - On startup, the app automatically discovers Roku devices on your network
 - Select your device from the dropdown menu at the top
 - Click "Refresh" to search for devices again
+- If discovery is blocked, enter the Roku IP address manually (e.g. `192.168.1.20`) in the Manual IP field
+
+### Diagnostics
+- Check local IPs, discovery status, and last scan time in the Diagnostics panel
+- Use "Test Current Device" to verify reachability before sending commands
+- Volume/mute status is shown when the Roku reports it (some models may not expose it)
 
 ### Remote Control
 - Use the on-screen buttons to control your Roku device
@@ -61,6 +72,7 @@ A powerful Electron-based remote control application for Roku devices, built for
 - **Space**: Play/Pause
 - **Backspace**: Back
 - **Escape/Home**: Home screen
+- Shortcuts are ignored while typing in input fields (for example Manual IP entry)
 
 ### App Launcher
 - View all installed apps in the right panel
@@ -71,7 +83,7 @@ A powerful Electron-based remote control application for Roku devices, built for
 
 - Node.js 14 or higher
 - A Roku device on the same network
-- macOS, Windows, or Linux
+- macOS 12+ (Apple Silicon supported), Windows, or Linux
 
 ## Technical Details
 

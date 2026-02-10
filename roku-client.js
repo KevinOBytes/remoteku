@@ -6,6 +6,7 @@ class RokuClient {
   constructor() {
     this.devices = [];
     this.currentDevice = null;
+    this.httpClient = axios;
   }
 
   // SSDP constants
@@ -13,6 +14,17 @@ class RokuClient {
   static SSDP_PORT = 1900;
   static DISCOVERY_TIMEOUT = 3000;
   static API_TIMEOUT = 5000;
+  static CONTROL_RETRY_ATTEMPTS = 3;
+  static CONTROL_RETRY_DELAY_MS = 150;
+  static RETRYABLE_ERROR_CODES = new Set([
+    'ECONNABORTED',
+    'ECONNRESET',
+    'EHOSTUNREACH',
+    'ENETUNREACH',
+    'ETIMEDOUT',
+    'ERR_NETWORK',
+    'ERR_SOCKET_TIMEOUT'
+  ]);
   static MULTICAST_RANGE_START = 224;
   static MULTICAST_RANGE_END = 239;
 
@@ -22,152 +34,245 @@ class RokuClient {
     port = RokuClient.SSDP_PORT,
     discoveryTimeout = RokuClient.DISCOVERY_TIMEOUT
   } = {}) {
-    return new Promise((resolve, reject) => {
-      const devices = [];
-      const softErrorCodes = new Set(['EACCES', 'EPERM', 'EADDRINUSE']);
-      const pendingRequests = [];
-      const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-      let isSettled = false;
-      const isMulticastTarget = RokuClient.isMulticastAddress(address);
-      const applyResults = (results) => {
-        this.devices = results;
-        this.currentDevice = results.length > 0 ? results[0] : null;
-      };
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    const validInterfaces = [];
 
-      const ssdpMessage = Buffer.from(
-        'M-SEARCH * HTTP/1.1\r\n' +
-        `HOST: ${address}:${port}\r\n` +
-        'MAN: "ssdp:discover"\r\n' +
-        'MX: 3\r\n' +
-        'ST: roku:ecp\r\n\r\n'
-      );
+    console.log('RokuClient: Starting discovery...');
 
-      const messageHandler = async (msg, rinfo) => {
-        const message = msg.toString();
-        const parsed = RokuClient.parseSsdpResponse(message);
-        if (!parsed?.location) {
-          return;
+    // Gather all valid IPv4 interfaces (non-internal)
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          validInterfaces.push({ name, address: net.address });
+          console.log(`RokuClient: Found interface ${name} (${net.address})`);
         }
+      }
+    }
 
-        const devicePromise = (async () => {
-          try {
-            const url = new URL(parsed.location);
-            const host = `${url.protocol}//${url.host}`;
-            const deviceInfo = await this.getDeviceInfo(host);
+    // If no specific interfaces found, fall back to default binding (0.0.0.0)
+    if (validInterfaces.length === 0) {
+      console.warn('RokuClient: No valid external IPv4 interfaces found. Falling back to default binding.');
+      validInterfaces.push({ name: 'default', address: '0.0.0.0' });
+    }
 
-            // Avoid duplicates
-            if (!devices.find(d => d.host === host)) {
-              devices.push({
-                host,
-                ip: rinfo.address,
-                ...deviceInfo
-              });
+    // Helper to run discovery on a single interface IP
+    const discoverOnInterface = (interfaceIp) => {
+      return new Promise((resolve, reject) => {
+        const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+        const softErrorCodes = new Set(['EACCES', 'EPERM', 'EADDRINUSE', 'EHOSTUNREACH', 'ENETUNREACH']);
+        let isSettled = false;
+
+        const foundDevices = [];
+
+        const ssdpMessage = Buffer.from(
+          'M-SEARCH * HTTP/1.1\r\n' +
+          `HOST: ${address}:${port}\r\n` +
+          'MAN: "ssdp:discover"\r\n' +
+          'MX: 3\r\n' +
+          'ST: roku:ecp\r\n\r\n'
+        );
+
+        const cleanup = () => {
+          if (!isSettled) {
+            isSettled = true;
+            try {
+              socket.close();
+              console.log(`RokuClient: Socket closed for ${interfaceIp}`);
+            } catch (e) {
+              console.error(`RokuClient: Error closing socket for ${interfaceIp}:`, e);
             }
-          } catch (err) {
-            console.error('Error getting device info:', err.message);
           }
-        })();
-        pendingRequests.push(devicePromise);
-      };
+        };
 
-      socket.on('message', messageHandler);
-
-      socket.on('error', (err) => {
-        if (!isSettled) {
-          isSettled = true;
-          socket.removeListener('message', messageHandler);
-          socket.close();
-
-          // Gracefully handle common permission/bind errors by resolving with no devices
-          if (softErrorCodes.has(err?.code)) {
-            console.warn(
-              'SSDP discovery failed due to network or socket permissions:',
-              err.message
-            );
-            applyResults([]);
-            resolve([]);
+        const messageHandler = async (msg, rinfo) => {
+          const message = msg.toString();
+          console.log(`RokuClient: Received message on ${interfaceIp} from ${rinfo.address}`);
+          const parsed = RokuClient.parseSsdpResponse(message);
+          if (!parsed?.location) {
             return;
           }
 
-          reject(err);
-        }
-      });
+          let host;
+          try {
+            const url = new URL(parsed.location);
+            host = `${url.protocol}//${url.host}`;
+          } catch (error) {
+            console.warn(`RokuClient: Ignoring invalid LOCATION "${parsed.location}"`);
+            return;
+          }
 
-      socket.once('listening', () => {
-        try {
-          socket.setBroadcast(true);
-          socket.setMulticastLoopback(true);
-          socket.setMulticastTTL(2);
-        } catch (err) {
-          // Non-fatal configuration errors should not abort discovery; discovery will continue with defaults.
-          console.warn(
-            'Failed to apply SSDP socket configuration options - using defaults:',
-            err.message
-          );
-        }
-      });
+          try {
+            console.log(`RokuClient: Fetching device info for ${host}`);
+            const deviceInfo = await this.getDeviceInfo(host);
+            console.log(`RokuClient: Found device ${host} (${deviceInfo.friendlyName})`);
+            foundDevices.push({
+              host,
+              ip: rinfo.address,
+              ...deviceInfo
+            });
+          } catch (e) {
+            console.warn(`RokuClient: Failed to fetch device info for ${host}: ${e.message}`);
+          }
+        };
 
-      socket.bind(() => {
-        // Multicast membership is not required for sending M-SEARCH
-        // and can cause EHOSTUNREACH on macOS if the route isn't set up for the random bound port.
-        socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
-          if (err && !isSettled) {
-            isSettled = true;
-            socket.removeListener('message', messageHandler);
-            socket.close();
+        socket.on('message', messageHandler);
 
-            if (softErrorCodes.has(err?.code)) {
-              console.warn(
-                'SSDP discovery failed while sending discovery packet:',
-                err.message
-              );
-              applyResults([]);
-              resolve([]);
-              return;
-            }
-
-            reject(err);
+        socket.on('error', (err) => {
+          if (softErrorCodes.has(err?.code)) {
+            console.warn(`RokuClient: Socket error on ${interfaceIp} (soft):`, err.message);
+            cleanup();
+            resolve([]);
+          } else {
+            console.warn(`RokuClient: Socket error on ${interfaceIp}:`, err.message);
+            cleanup();
+            resolve([]);
           }
         });
+
+        console.log(`RokuClient: Binding socket to ${interfaceIp}...`);
+        socket.bind(0, interfaceIp, () => {
+          console.log(`RokuClient: Socket bound to ${interfaceIp}. Configuring socket...`);
+          try {
+            if (typeof socket.setBroadcast === 'function') {
+              socket.setBroadcast(true);
+            }
+            if (typeof socket.setMulticastTTL === 'function') {
+              socket.setMulticastTTL(2);
+            }
+            if (typeof socket.setMulticastLoopback === 'function') {
+              socket.setMulticastLoopback(true);
+            }
+            if (RokuClient.isMulticastAddress(address)) {
+              if (typeof socket.setMulticastInterface === 'function' && interfaceIp && interfaceIp !== '0.0.0.0') {
+                socket.setMulticastInterface(interfaceIp);
+              }
+              if (typeof socket.addMembership === 'function') {
+                if (interfaceIp && interfaceIp !== '0.0.0.0') {
+                  socket.addMembership(address, interfaceIp);
+                } else {
+                  socket.addMembership(address);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`RokuClient: Socket config failed on ${interfaceIp}:`, e.message);
+          }
+
+          console.log(`RokuClient: Sending M-SEARCH on ${interfaceIp}...`);
+          socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
+            if (err) {
+              if (softErrorCodes.has(err?.code)) {
+                console.warn(`RokuClient: Send error on ${interfaceIp} (soft):`, err.message);
+                cleanup();
+                resolve([]);
+                return;
+              }
+              console.warn(`RokuClient: Send error on ${interfaceIp}:`, err.message);
+              cleanup();
+              resolve([]);
+            } else {
+              console.log(`RokuClient: M-SEARCH sent on ${interfaceIp}`);
+            }
+          });
+        });
+
+        setTimeout(() => {
+          console.log(`RokuClient: Timeout on ${interfaceIp}. Found ${foundDevices.length} devices.`);
+          cleanup();
+          resolve(foundDevices);
+        }, discoveryTimeout);
+      });
+    };
+
+    try {
+      console.log('RokuClient: Invoking parallel discovery...');
+      const allResults = await Promise.all(
+        validInterfaces.map(iface => discoverOnInterface(iface.address))
+      );
+      console.log('RokuClient: Parallel discovery finished.');
+
+      const uniqueDevices = new Map();
+      allResults.flat().forEach(device => {
+        if (!uniqueDevices.has(device.host)) {
+          uniqueDevices.set(device.host, device);
+        }
       });
 
-      // Wait for responses and all pending device info requests
-      setTimeout(async () => {
-        if (!isSettled) {
-          isSettled = true;
-          socket.removeListener('message', messageHandler);
-          socket.close();
+      const devices = Array.from(uniqueDevices.values());
+      console.log(`RokuClient: Total unique devices found: ${devices.length}`);
 
-          // Wait for all pending device info requests to complete
-          await Promise.allSettled(pendingRequests);
+      this.devices = devices;
+      this.currentDevice = devices.length > 0 ? devices[0] : null;
 
-          applyResults(devices);
-          resolve(devices);
-        }
-      }, discoveryTimeout);
-    });
+      return devices;
+    } catch (err) {
+      console.error('RokuClient: Critical error during discovery:', err);
+      return [];
+    }
   }
 
-  // Get device information
+  // Add or update a device in the list and set it as current
+  addDevice(device) {
+    if (!device || !device.host) {
+      return null;
+    }
+
+    const existingIndex = this.devices.findIndex(item => item.host === device.host);
+    if (existingIndex >= 0) {
+      this.devices[existingIndex] = {
+        ...this.devices[existingIndex],
+        ...device
+      };
+      this.currentDevice = this.devices[existingIndex];
+    } else {
+      this.devices.push(device);
+      this.currentDevice = device;
+    }
+
+    return this.currentDevice;
+  }
+
+  async probeDeviceInfo(host) {
+    const response = await this.httpClient.get(`${host}/query/device-info`, {
+      timeout: RokuClient.API_TIMEOUT
+    });
+
+    const parser = new XMLParser();
+    const result = parser.parse(response.data);
+    const deviceInfo = result['device-info'] || {};
+
+    return {
+      friendlyName: deviceInfo['friendly-device-name'] || deviceInfo['user-device-name'] || 'Roku Device',
+      modelName: deviceInfo['model-name'] || 'Unknown',
+      serialNumber: deviceInfo['serial-number'] || 'Unknown',
+      supportsAudioVolumeControl: RokuClient.parseBoolean(deviceInfo['supports-audio-volume-control']),
+      volume: RokuClient.parseNumber(
+        deviceInfo.volume ??
+        deviceInfo['audio-volume'] ??
+        deviceInfo['volume-level']
+      ),
+      muted: RokuClient.parseBoolean(
+        deviceInfo['is-muted'] ??
+        deviceInfo['volume-muted'] ??
+        deviceInfo.muted ??
+        deviceInfo['audio-muted']
+      )
+    };
+  }
+
+  // Get device information (best-effort, returns defaults on failure)
   async getDeviceInfo(host) {
     try {
-      const response = await axios.get(`${host}/query/device-info`, {
-        timeout: RokuClient.API_TIMEOUT
-      });
-
-      const parser = new XMLParser();
-      const result = parser.parse(response.data);
-
-      return {
-        friendlyName: result['device-info']?.['friendly-device-name'] || 'Roku Device',
-        modelName: result['device-info']?.['model-name'] || 'Unknown',
-        serialNumber: result['device-info']?.['serial-number'] || 'Unknown'
-      };
+      return await this.probeDeviceInfo(host);
     } catch (error) {
       return {
         friendlyName: 'Roku Device',
         modelName: 'Unknown',
-        serialNumber: 'Unknown'
+        serialNumber: 'Unknown',
+        supportsAudioVolumeControl: null,
+        volume: null,
+        muted: null
       };
     }
   }
@@ -179,7 +284,7 @@ class RokuClient {
     }
 
     try {
-      const response = await axios.get(`${this.currentDevice.host}/query/apps`, {
+      const response = await this.httpClient.get(`${this.currentDevice.host}/query/apps`, {
         timeout: RokuClient.API_TIMEOUT
       });
 
@@ -194,9 +299,38 @@ class RokuClient {
       const appArray = Array.isArray(appList) ? appList : [appList];
 
       for (const app of appArray) {
+        if (!app) {
+          continue;
+        }
+
+        if (typeof app === 'string') {
+          const appName = app.trim();
+          if (!appName) {
+            continue;
+          }
+          apps.push({
+            id: undefined,
+            name: appName,
+            version: undefined
+          });
+          continue;
+        }
+
+        if (typeof app !== 'object') {
+          continue;
+        }
+
+        const appId = app['@_id'];
+        const appNameRaw = app['#text'];
+        const appName = typeof appNameRaw === 'string' ? appNameRaw.trim() : '';
+
+        if (!appId && !appName) {
+          continue;
+        }
+
         apps.push({
-          id: app['@_id'],
-          name: app['#text'] || app,
+          id: appId,
+          name: appName || 'Unknown App',
           version: app['@_version']
         });
       }
@@ -214,15 +348,7 @@ class RokuClient {
       throw new Error('No device selected');
     }
 
-    try {
-      await axios.post(`${this.currentDevice.host}/launch/${appId}`, null, {
-        timeout: RokuClient.API_TIMEOUT
-      });
-      return true;
-    } catch (error) {
-      console.error('Error launching app:', error.message);
-      return false;
-    }
+    return await this.postWithRetry(`/launch/${appId}`, `launching app ${appId}`);
   }
 
   // Send key press command
@@ -231,15 +357,51 @@ class RokuClient {
       throw new Error('No device selected');
     }
 
-    try {
-      await axios.post(`${this.currentDevice.host}/keypress/${key}`, null, {
-        timeout: RokuClient.API_TIMEOUT
-      });
-      return true;
-    } catch (error) {
-      console.error('Error sending key:', error.message);
-      return false;
+    return await this.postWithRetry(`/keypress/${key}`, `sending key ${key}`);
+  }
+
+  async postWithRetry(endpoint, actionLabel) {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= RokuClient.CONTROL_RETRY_ATTEMPTS; attempt += 1) {
+      try {
+        await this.httpClient.post(`${this.currentDevice.host}${endpoint}`, null, {
+          timeout: RokuClient.API_TIMEOUT
+        });
+        return true;
+      } catch (error) {
+        lastError = error;
+        const retryable = RokuClient.isRetryableError(error);
+        if (!retryable || attempt === RokuClient.CONTROL_RETRY_ATTEMPTS) {
+          break;
+        }
+        await RokuClient.delay(RokuClient.CONTROL_RETRY_DELAY_MS * attempt);
+      }
     }
+
+    console.error(`Error ${actionLabel}:`, lastError?.message || 'Unknown error');
+    return false;
+  }
+
+  static isRetryableError(error) {
+    const code = error?.code;
+    if (code && RokuClient.RETRYABLE_ERROR_CODES.has(code)) {
+      return true;
+    }
+
+    const status = error?.response?.status;
+    if (typeof status === 'number' && status >= 500) {
+      return true;
+    }
+
+    const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+    return message.includes('timeout') ||
+      message.includes('network') ||
+      message.includes('socket hang up');
+  }
+
+  static delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   // Set current device
@@ -312,6 +474,31 @@ class RokuClient {
     return {
       location: headers.location
     };
+  }
+
+  static parseBoolean(value) {
+    if (value === undefined || value === null) {
+      return null;
+    }
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    if (['true', '1', 'yes'].includes(normalized)) {
+      return true;
+    }
+    if (['false', '0', 'no'].includes(normalized)) {
+      return false;
+    }
+    return null;
+  }
+
+  static parseNumber(value) {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
   }
 }
 

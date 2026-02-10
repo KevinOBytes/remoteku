@@ -3,47 +3,120 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Roku Remote</title>
+  <title>RemoteKu</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>Roku Remote</h1>
-      <div class="device-selector">
-        <label for="device-select">Device:</label>
-        <select id="device-select">
-          <option value="">Searching...</option>
-        </select>
-        <button id="refresh-devices" class="btn-small">Refresh</button>
+    <header class="top-bar" style="--delay: 0s;">
+      <div class="brand">
+        <div class="brand-mark">RK</div>
+        <div>
+          <h1>RemoteKu</h1>
+          <p class="subtitle">A polished Roku remote for your local network.</p>
+        </div>
+      </div>
+      <div class="status-pill">
+        <span id="status-dot" class="status-dot idle" aria-hidden="true"></span>
+        <span id="status-message">Ready</span>
       </div>
     </header>
 
+    <section class="device-panel card" style="--delay: 0.05s;">
+      <div class="device-header">
+        <div>
+          <h2>Device Connection</h2>
+          <p class="section-subtitle">Auto-discover or connect directly.</p>
+        </div>
+        <div class="current-device">
+          <span class="label">Current</span>
+          <span id="current-device">Not connected</span>
+        </div>
+      </div>
+      <div class="device-row">
+        <div class="device-field">
+          <label for="device-select">Detected Devices</label>
+          <select id="device-select">
+            <option value="">Searching...</option>
+          </select>
+        </div>
+        <button id="refresh-devices" class="btn btn-primary">Refresh</button>
+      </div>
+      <div class="device-row">
+        <div class="device-field">
+          <label for="manual-host">Manual IP / Host</label>
+          <input id="manual-host" type="text" placeholder="192.168.1.20 or http://192.168.1.20:8060" />
+        </div>
+        <button id="manual-connect" class="btn btn-secondary">Connect</button>
+      </div>
+      <p class="device-hint">
+        If discovery fails on macOS, allow Local Network access for RemoteKu (or Electron when running via npm).
+      </p>
+    </section>
+
+    <section class="diagnostics card" style="--delay: 0.08s;">
+      <div class="diagnostics-header">
+        <div>
+          <h2>Connection Diagnostics</h2>
+          <p class="section-subtitle">Local network visibility, SSDP status, and reachability tests.</p>
+        </div>
+        <button id="test-connection" class="btn btn-secondary">Test Current Device</button>
+      </div>
+      <div class="diag-grid">
+        <div class="diag-item">
+          <div class="diag-label">Local IPs</div>
+          <div id="local-ips" class="diag-value">—</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-label">Discovery</div>
+          <div id="discovery-status" class="diag-value">Idle</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-label">Last Scan</div>
+          <div id="last-scan" class="diag-value">—</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-label">Audio Control</div>
+          <div id="audio-control" class="diag-value">—</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-label">Volume / Mute</div>
+          <div id="volume-mute" class="diag-value">—</div>
+        </div>
+        <div class="diag-item">
+          <div class="diag-label">Test Result</div>
+          <div id="test-result" class="diag-value">—</div>
+        </div>
+      </div>
+      <p class="device-hint">
+        Tip: If Local Network is blocked, add the Roku IP manually or enable access under System Settings.
+      </p>
+    </section>
+
     <div class="main-content">
-      <!-- Remote Control Section -->
-      <div class="remote-section">
-        <h2>Remote Control</h2>
-        
+      <section class="remote-section card" style="--delay: 0.1s;">
+        <div class="section-header">
+          <div>
+            <h2>Remote Control</h2>
+            <p class="section-subtitle">Fast, tactile controls with live feedback.</p>
+          </div>
+        </div>
+
         <div class="remote-control">
-          <!-- Power and Home Row -->
           <div class="button-row">
             <button class="btn btn-control" data-key="Power">Power</button>
             <button class="btn btn-control" data-key="Home">Home</button>
             <button class="btn btn-control" data-key="Back">Back</button>
           </div>
 
-          <!-- Navigation Pad -->
           <div class="nav-pad">
             <button class="btn btn-nav btn-up" data-key="Up" aria-label="Up">▲</button>
-            <div class="nav-middle">
-              <button class="btn btn-nav btn-left" data-key="Left" aria-label="Left">◀</button>
-              <button class="btn btn-select" data-key="Select">OK</button>
-              <button class="btn btn-nav btn-right" data-key="Right" aria-label="Right">▶</button>
-            </div>
+            <button class="btn btn-nav btn-left" data-key="Left" aria-label="Left">◀</button>
+            <button class="btn btn-select" data-key="Select">OK</button>
+            <button class="btn btn-nav btn-right" data-key="Right" aria-label="Right">▶</button>
             <button class="btn btn-nav btn-down" data-key="Down" aria-label="Down">▼</button>
           </div>
 
-          <!-- Playback Controls -->
           <div class="playback-controls">
             <div class="button-row">
               <button class="btn btn-media" data-key="Rev">⏪</button>
@@ -57,7 +130,6 @@
             </div>
           </div>
 
-          <!-- Volume Controls -->
           <div class="volume-controls">
             <h3>Volume</h3>
             <div class="button-row">
@@ -67,20 +139,23 @@
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Apps Section -->
-      <div class="apps-section">
-        <h2>Installed Apps</h2>
-        <button id="refresh-apps" class="btn-small">Refresh Apps</button>
+      <section class="apps-section card" style="--delay: 0.15s;">
+        <div class="apps-header">
+          <div>
+            <h2>Installed Apps</h2>
+            <p class="section-subtitle">Launch favorites instantly.</p>
+          </div>
+          <button id="refresh-apps" class="btn btn-primary">Refresh Apps</button>
+        </div>
+        <div class="apps-meta">
+          <span id="apps-count">0 apps</span>
+        </div>
         <div id="apps-container" class="apps-grid">
           <p>Loading apps...</p>
         </div>
-      </div>
-    </div>
-
-    <div class="status-bar">
-      <span id="status-message">Ready</span>
+      </section>
     </div>
   </div>
 

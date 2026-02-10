@@ -1,16 +1,17 @@
-const { contextBridge } = require('electron');
-const RokuClient = require('./roku-client');
-
-const rokuClient = new RokuClient();
+const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose protected methods that allow the renderer process to use
-// the Roku client without giving it full access to Node.js
+// the Roku client running in the main process via IPC
 contextBridge.exposeInMainWorld('rokuAPI', {
-  discoverDevices: () => rokuClient.discoverDevices(),
-  getDevices: () => rokuClient.getDevices(),
-  setDevice: (device) => rokuClient.setDevice(device),
-  getCurrentDevice: () => rokuClient.getCurrentDevice(),
-  getApps: () => rokuClient.getApps(),
-  launchApp: (appId) => rokuClient.launchApp(appId),
-  sendKey: (key) => rokuClient.sendKey(key)
+  discoverDevices: () => ipcRenderer.invoke('roku:discover'),
+  getDevices: () => ipcRenderer.invoke('roku:get-devices'),
+  setDevice: (device) => ipcRenderer.invoke('roku:set-device', device),
+  getCurrentDevice: () => ipcRenderer.invoke('roku:get-current-device'),
+  getDeviceInfo: (host) => ipcRenderer.invoke('roku:get-device-info', host),
+  probeDevice: (host) => ipcRenderer.invoke('roku:probe-device', host),
+  addDevice: (device) => ipcRenderer.invoke('roku:add-device', device),
+  getNetworkInfo: () => ipcRenderer.invoke('roku:get-network-info'),
+  getApps: () => ipcRenderer.invoke('roku:get-apps'),
+  launchApp: (appId) => ipcRenderer.invoke('roku:launch-app', appId),
+  sendKey: (key) => ipcRenderer.invoke('roku:send-key', key)
 });
