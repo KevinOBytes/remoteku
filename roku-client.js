@@ -218,10 +218,14 @@ class RokuClient {
 
       if (devices.length === 0 && fallbackScan) {
         console.log('RokuClient: SSDP found no devices. Starting fallback subnet scan...');
-        const fallbackDevices = await this.scanLocalSubnetsForRoku({
+        const fallbackResult = await this.scanLocalSubnetsForRoku({
           timeout: fallbackScanTimeout,
           concurrency: fallbackScanConcurrency
         });
+        const fallbackDevices = fallbackResult.devices;
+        if (fallbackResult.permissionDenied) {
+          permissionDenied = true;
+        }
         for (const device of fallbackDevices) {
           if (!uniqueDevices.has(device.host)) {
             uniqueDevices.set(device.host, device);
@@ -732,6 +736,7 @@ class RokuClient {
 
     console.log(`RokuClient: Fallback scan probing ${targets.length} hosts...`);
 
+    let permissionDenied = false;
     const found = await RokuClient.mapWithConcurrency(targets, scanConcurrency, async (ip) => {
       const host = `http://${ip}:8060`;
       try {
@@ -742,11 +747,14 @@ class RokuClient {
           ...info
         };
       } catch (error) {
+        if (error?.code === 'EACCES' || error?.code === 'EPERM') {
+          permissionDenied = true;
+        }
         return null;
       }
     });
 
-    return found;
+    return { devices: found, permissionDenied };
   }
 }
 

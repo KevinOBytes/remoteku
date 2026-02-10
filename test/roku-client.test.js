@@ -139,7 +139,8 @@ test('scanLocalSubnetsForRoku finds devices on private subnet', async (t) => {
     throw new Error('not found');
   };
 
-  const devices = await client.scanLocalSubnetsForRoku({ timeout: 1, concurrency: 2 });
+  const result = await client.scanLocalSubnetsForRoku({ timeout: 1, concurrency: 2 });
+  const devices = result.devices;
 
   assert.equal(devices.length, 1);
   assert.equal(devices[0].host, 'http://192.168.1.9:8060');
