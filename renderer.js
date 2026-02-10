@@ -26,6 +26,7 @@ const STATUS_DISPLAY_DURATION = 3000;
 const KEY_PRESS_FEEDBACK_DURATION = 1000;
 const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
 const STORAGE_KEY = 'remoteku:lastDevice';
+const DISCOVERY_OPTIONS = { fallbackScan: true, throwOnPermission: true };
 
 // State
 // Note: isPlaying tracks state locally and may not reflect actual Roku device state
@@ -286,15 +287,15 @@ async function connectToHost(hostInput, { remember = true, announce = true, sile
 
 // Discover devices on load
 async function discoverDevices() {
-  setStatus('Discovering Roku devices...', { duration: 0, state: 'info' });
-  setDiscoveryStatus('Scanning...');
+  setStatus('Discovering Roku devices (SSDP + subnet scan)...', { duration: 0, state: 'info' });
+  setDiscoveryStatus('Scanning (SSDP + subnet)...');
   setLastScan(Date.now());
   deviceSelect.innerHTML = '<option value="">Searching...</option>';
   setTestResult('—');
   const savedDevice = loadLastDevice();
 
   try {
-    const devices = await rokuAPI.discoverDevices();
+    const devices = await rokuAPI.discoverDevices(DISCOVERY_OPTIONS);
 
     if (devices.length === 0) {
       deviceSelect.innerHTML = '<option value="">No devices found</option>';

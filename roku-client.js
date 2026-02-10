@@ -14,6 +14,9 @@ class RokuClient {
   static SSDP_PORT = 1900;
   static DISCOVERY_TIMEOUT = 3000;
   static API_TIMEOUT = 5000;
+  static FALLBACK_SCAN_TIMEOUT = 800;
+  static FALLBACK_SCAN_CONCURRENCY = 30;
+  static FALLBACK_SCAN_MIN_PREFIX = 24;
   static CONTROL_RETRY_ATTEMPTS = 3;
   static CONTROL_RETRY_DELAY_MS = 150;
   static RETRYABLE_ERROR_CODES = new Set([
@@ -32,11 +35,16 @@ class RokuClient {
   async discoverDevices({
     address = RokuClient.SSDP_ADDRESS,
     port = RokuClient.SSDP_PORT,
-    discoveryTimeout = RokuClient.DISCOVERY_TIMEOUT
+    discoveryTimeout = RokuClient.DISCOVERY_TIMEOUT,
+    fallbackScan = false,
+    fallbackScanTimeout = RokuClient.FALLBACK_SCAN_TIMEOUT,
+    fallbackScanConcurrency = RokuClient.FALLBACK_SCAN_CONCURRENCY,
+    throwOnPermission = false
   } = {}) {
     const os = require('os');
     const interfaces = os.networkInterfaces();
     const validInterfaces = [];
+    let permissionDenied = false;
 
     console.log('RokuClient: Starting discovery...');
 
@@ -119,6 +127,9 @@ class RokuClient {
         socket.on('message', messageHandler);
 
         socket.on('error', (err) => {
+          if (err?.code === 'EACCES' || err?.code === 'EPERM') {
+            permissionDenied = true;
+          }
           if (softErrorCodes.has(err?.code)) {
             console.warn(`RokuClient: Socket error on ${interfaceIp} (soft):`, err.message);
             cleanup();
@@ -162,6 +173,9 @@ class RokuClient {
           console.log(`RokuClient: Sending M-SEARCH on ${interfaceIp}...`);
           socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
             if (err) {
+              if (err?.code === 'EACCES' || err?.code === 'EPERM') {
+                permissionDenied = true;
+              }
               if (softErrorCodes.has(err?.code)) {
                 console.warn(`RokuClient: Send error on ${interfaceIp} (soft):`, err.message);
                 cleanup();
@@ -199,15 +213,39 @@ class RokuClient {
         }
       });
 
-      const devices = Array.from(uniqueDevices.values());
+      let devices = Array.from(uniqueDevices.values());
       console.log(`RokuClient: Total unique devices found: ${devices.length}`);
+
+      if (devices.length === 0 && fallbackScan) {
+        console.log('RokuClient: SSDP found no devices. Starting fallback subnet scan...');
+        const fallbackDevices = await this.scanLocalSubnetsForRoku({
+          timeout: fallbackScanTimeout,
+          concurrency: fallbackScanConcurrency
+        });
+        for (const device of fallbackDevices) {
+          if (!uniqueDevices.has(device.host)) {
+            uniqueDevices.set(device.host, device);
+          }
+        }
+        devices = Array.from(uniqueDevices.values());
+        console.log(`RokuClient: Fallback scan found ${fallbackDevices.length} devices.`);
+      }
 
       this.devices = devices;
       this.currentDevice = devices.length > 0 ? devices[0] : null;
 
+      if (devices.length === 0 && permissionDenied && throwOnPermission) {
+        const error = new Error('Local network access blocked');
+        error.code = 'EACCES';
+        throw error;
+      }
+
       return devices;
     } catch (err) {
       console.error('RokuClient: Critical error during discovery:', err);
+      if (throwOnPermission && (err?.code === 'EACCES' || err?.code === 'EPERM')) {
+        throw err;
+      }
       return [];
     }
   }
@@ -233,9 +271,10 @@ class RokuClient {
     return this.currentDevice;
   }
 
-  async probeDeviceInfo(host) {
+  async probeDeviceInfo(host, { timeout } = {}) {
+    const effectiveTimeout = typeof timeout === 'number' ? timeout : RokuClient.API_TIMEOUT;
     const response = await this.httpClient.get(`${host}/query/device-info`, {
-      timeout: RokuClient.API_TIMEOUT
+      timeout: effectiveTimeout
     });
 
     const parser = new XMLParser();
@@ -499,6 +538,215 @@ class RokuClient {
     }
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  static isPrivateIPv4(address) {
+    const value = RokuClient.ipToInt(address);
+    if (value === null) {
+      return false;
+    }
+    const first = (value >>> 24) & 0xff;
+    const second = (value >>> 16) & 0xff;
+    if (first === 10) {
+      return true;
+    }
+    if (first === 172 && second >= 16 && second <= 31) {
+      return true;
+    }
+    if (first === 192 && second === 168) {
+      return true;
+    }
+    return false;
+  }
+
+  static ipToInt(address) {
+    if (typeof address !== 'string') {
+      return null;
+    }
+    const octets = address.split('.');
+    if (octets.length !== 4) {
+      return null;
+    }
+    let value = 0;
+    for (const octet of octets) {
+      if (!/^(0|[1-9]\d{0,2})$/.test(octet)) {
+        return null;
+      }
+      const number = Number(octet);
+      if (!Number.isInteger(number) || number < 0 || number > 255) {
+        return null;
+      }
+      value = (value << 8) + number;
+    }
+    return value >>> 0;
+  }
+
+  static intToIp(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return null;
+    }
+    return [
+      (value >>> 24) & 0xff,
+      (value >>> 16) & 0xff,
+      (value >>> 8) & 0xff,
+      value & 0xff
+    ].join('.');
+  }
+
+  static netmaskToPrefix(netmask) {
+    const maskValue = RokuClient.ipToInt(netmask);
+    if (maskValue === null) {
+      return null;
+    }
+    let prefix = 0;
+    for (let bit = 31; bit >= 0; bit -= 1) {
+      if ((maskValue >>> bit) & 1) {
+        prefix += 1;
+      } else {
+        break;
+      }
+    }
+    return prefix;
+  }
+
+  static prefixToMaskInt(prefix) {
+    if (typeof prefix !== 'number' || prefix <= 0) {
+      return 0;
+    }
+    if (prefix >= 32) {
+      return 0xffffffff;
+    }
+    return (0xffffffff << (32 - prefix)) >>> 0;
+  }
+
+  static mapWithConcurrency(items, concurrency, worker) {
+    if (!Array.isArray(items) || items.length === 0) {
+      return Promise.resolve([]);
+    }
+    const limit = Math.max(1, Math.min(concurrency || 1, items.length));
+    const results = [];
+    let cursor = 0;
+
+    const runWorker = async () => {
+      while (cursor < items.length) {
+        const index = cursor;
+        cursor += 1;
+        const item = items[index];
+        try {
+          const result = await worker(item, index);
+          if (result) {
+            results.push(result);
+          }
+        } catch (error) {
+          // Ignore per-item errors
+        }
+      }
+    };
+
+    const workers = Array.from({ length: limit }, runWorker);
+    return Promise.all(workers).then(() => results);
+  }
+
+  async scanLocalSubnetsForRoku({ timeout, concurrency } = {}) {
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    const subnets = [];
+    const seen = new Set();
+    const minPrefix = RokuClient.FALLBACK_SCAN_MIN_PREFIX;
+
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name]) {
+        if (net.family !== 'IPv4' || net.internal) {
+          continue;
+        }
+        if (!RokuClient.isPrivateIPv4(net.address)) {
+          continue;
+        }
+
+        let prefix = null;
+        if (typeof net.cidr === 'string') {
+          const parts = net.cidr.split('/');
+          if (parts.length === 2) {
+            const parsed = Number(parts[1]);
+            if (Number.isFinite(parsed)) {
+              prefix = parsed;
+            }
+          }
+        }
+        if (prefix === null && typeof net.netmask === 'string') {
+          prefix = RokuClient.netmaskToPrefix(net.netmask);
+        }
+        if (prefix === null || !Number.isFinite(prefix)) {
+          prefix = minPrefix;
+        }
+
+        const effectivePrefix = Math.max(prefix, minPrefix);
+        const maskInt = RokuClient.prefixToMaskInt(effectivePrefix);
+        const ipInt = RokuClient.ipToInt(net.address);
+        if (ipInt === null) {
+          continue;
+        }
+        const networkInt = ipInt & maskInt;
+        const broadcastInt = networkInt | (~maskInt >>> 0);
+        const key = `${networkInt}/${effectivePrefix}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+
+        subnets.push({
+          name,
+          address: net.address,
+          ipInt,
+          networkInt,
+          broadcastInt,
+          prefix: effectivePrefix
+        });
+      }
+    }
+
+    if (subnets.length === 0) {
+      console.log('RokuClient: No private IPv4 subnets available for fallback scan.');
+      return [];
+    }
+
+    const targets = [];
+    for (const subnet of subnets) {
+      for (let current = subnet.networkInt + 1; current < subnet.broadcastInt; current += 1) {
+        if (current === subnet.ipInt) {
+          continue;
+        }
+        const ip = RokuClient.intToIp(current);
+        if (ip) {
+          targets.push(ip);
+        }
+      }
+    }
+
+    if (targets.length === 0) {
+      return [];
+    }
+
+    const scanTimeout = typeof timeout === 'number' ? timeout : RokuClient.FALLBACK_SCAN_TIMEOUT;
+    const scanConcurrency = typeof concurrency === 'number' ? concurrency : RokuClient.FALLBACK_SCAN_CONCURRENCY;
+
+    console.log(`RokuClient: Fallback scan probing ${targets.length} hosts...`);
+
+    const found = await RokuClient.mapWithConcurrency(targets, scanConcurrency, async (ip) => {
+      const host = `http://${ip}:8060`;
+      try {
+        const info = await this.probeDeviceInfo(host, { timeout: scanTimeout });
+        return {
+          host,
+          ip,
+          ...info
+        };
+      } catch (error) {
+        return null;
+      }
+    });
+
+    return found;
   }
 }
 

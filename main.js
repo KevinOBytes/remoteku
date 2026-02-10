@@ -47,14 +47,17 @@ function createWindow() {
 }
 
 // IPC Handlers
-ipcMain.handle('roku:discover', async () => {
-  console.log('IPC: roku:discover called');
+ipcMain.handle('roku:discover', async (_event, options = {}) => {
+  console.log('IPC: roku:discover called', options);
   try {
-    const devices = await rokuClient.discoverDevices();
+    const devices = await rokuClient.discoverDevices(options);
     console.log(`IPC: roku:discover finishing with ${devices.length} devices`);
     return devices;
   } catch (e) {
     console.error('IPC: roku:discover failed:', e);
+    if (e?.code === 'EACCES' || e?.code === 'EPERM') {
+      throw e;
+    }
     return [];
   }
 });
