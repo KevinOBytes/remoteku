@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const dgram = require('dgram');
 const http = require('http');
+const os = require('os');
 const RokuClient = require('../roku-client');
 
 test('discoverDevices finds Roku device and supports basic control', async (t) => {
@@ -238,7 +239,12 @@ test('discoverDevices handles send permission errors gracefully', async (t) => {
         handler();
       }
     },
-    bind: (cb) => cb(),
+    bind: (...args) => {
+      const cb = typeof args[2] === 'function' ? args[2] : args[0];
+      if (typeof cb === 'function') {
+        cb();
+      }
+    },
     addMembership: () => {},
     setBroadcast: () => {},
     setMulticastLoopback: () => {},
@@ -280,7 +286,12 @@ test('socket configuration errors do not fail discovery', async (t) => {
         handler();
       }
     },
-    bind: (cb) => cb(),
+    bind: (...args) => {
+      const cb = typeof args[2] === 'function' ? args[2] : args[0];
+      if (typeof cb === 'function') {
+        cb();
+      }
+    },
     addMembership: () => {},
     setBroadcast: () => {
       throw new Error('broadcast fail');
@@ -368,4 +379,426 @@ test('parseSsdpResponse handles edge cases directly', async (t) => {
       location: 'http://10.0.0.4:8060/path:with:colons'
     });
   });
+
+  await t.test('returns null for non-string input', () => {
+    assert.equal(RokuClient.parseSsdpResponse(null), null);
+    assert.equal(RokuClient.parseSsdpResponse(undefined), null);
+    assert.equal(RokuClient.parseSsdpResponse({}), null);
+  });
+});
+
+test('discoverDevices falls back to default binding when only internal interfaces exist', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalCreateSocket = dgram.createSocket;
+  let boundAddress = null;
+  let sendCalled = false;
+
+  os.networkInterfaces = () => ({
+    lo0: [{ address: '127.0.0.1', family: 'IPv4', internal: true }]
+  });
+
+  const fakeSocket = {
+    on: () => {},
+    bind: (_port, address, cb) => {
+      boundAddress = address;
+      if (typeof cb === 'function') {
+        cb();
+      }
+    },
+    send: (_buf, _offset, _length, _port, _address, cb) => {
+      sendCalled = true;
+      if (typeof cb === 'function') {
+        cb();
+      }
+    },
+    close: () => {}
+  };
+
+  dgram.createSocket = () => fakeSocket;
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    dgram.createSocket = originalCreateSocket;
+  });
+
+  const client = new RokuClient();
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 1900,
+    discoveryTimeout: 25
+  });
+
+  assert.equal(boundAddress, '0.0.0.0');
+  assert.equal(sendCalled, true);
+  assert.equal(devices.length, 0);
+  assert.equal(client.getCurrentDevice(), null);
+});
+
+test('discoverDevices deduplicates identical hosts across interfaces', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalCreateSocket = dgram.createSocket;
+  let infoCalls = 0;
+
+  os.networkInterfaces = () => ({
+    eth0: [{ address: '192.168.1.10', family: 'IPv4', internal: false }],
+    wlan0: [{ address: '192.168.1.11', family: 'IPv4', internal: false }]
+  });
+
+  const sockets = [];
+  dgram.createSocket = () => {
+    const handlers = {};
+    const socket = {
+      on: (event, handler) => {
+        handlers[event] = handler;
+      },
+      bind: (_port, _address, cb) => {
+        if (typeof cb === 'function') {
+          cb();
+        }
+      },
+      send: (_buf, _offset, _length, _port, _address, cb) => {
+        if (typeof cb === 'function') {
+          cb();
+        }
+        if (handlers.message) {
+          const response = [
+            'HTTP/1.1 200 OK',
+            'CACHE-CONTROL: max-age=300',
+            'ST: roku:ecp',
+            'USN: uuid:roku:ecp:device',
+            'LOCATION: http://192.168.1.50:8060',
+            ''
+          ].join('\r\n');
+          setImmediate(() => {
+            handlers.message(Buffer.from(response), { address: '192.168.1.50' });
+          });
+        }
+      },
+      close: () => {}
+    };
+    sockets.push(socket);
+    return socket;
+  };
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    dgram.createSocket = originalCreateSocket;
+  });
+
+  const client = new RokuClient();
+  client.getDeviceInfo = async () => {
+    infoCalls += 1;
+    return {
+      friendlyName: 'Mock Roku',
+      modelName: 'MockModel',
+      serialNumber: 'mock-serial'
+    };
+  };
+
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 1900,
+    discoveryTimeout: 50
+  });
+
+  assert.equal(sockets.length, 2);
+  assert.equal(infoCalls, 2);
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0].host, 'http://192.168.1.50:8060');
+  assert.equal(devices[0].friendlyName, 'Mock Roku');
+  assert.equal(client.getCurrentDevice().host, 'http://192.168.1.50:8060');
+});
+
+test('discoverDevices ignores SSDP responses without LOCATION headers', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalCreateSocket = dgram.createSocket;
+  let infoCalls = 0;
+
+  os.networkInterfaces = () => ({
+    eth0: [{ address: '192.168.1.10', family: 'IPv4', internal: false }]
+  });
+
+  dgram.createSocket = () => {
+    const handlers = {};
+    return {
+      on: (event, handler) => {
+        handlers[event] = handler;
+      },
+      bind: (_port, _address, cb) => {
+        if (typeof cb === 'function') {
+          cb();
+        }
+      },
+      send: (_buf, _offset, _length, _port, _address, cb) => {
+        if (typeof cb === 'function') {
+          cb();
+        }
+        if (handlers.message) {
+          const response = [
+            'HTTP/1.1 200 OK',
+            'ST: roku:ecp',
+            'USN: uuid:roku:ecp:device',
+            ''
+          ].join('\r\n');
+          setImmediate(() => {
+            handlers.message(Buffer.from(response), { address: '192.168.1.50' });
+          });
+        }
+      },
+      close: () => {}
+    };
+  };
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    dgram.createSocket = originalCreateSocket;
+  });
+
+  const client = new RokuClient();
+  client.getDeviceInfo = async () => {
+    infoCalls += 1;
+    return {
+      friendlyName: 'Should Not Be Used',
+      modelName: 'Ignored',
+      serialNumber: 'ignored'
+    };
+  };
+
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 1900,
+    discoveryTimeout: 40
+  });
+
+  assert.equal(infoCalls, 0);
+  assert.equal(devices.length, 0);
+  assert.equal(client.getCurrentDevice(), null);
+});
+
+test('isMulticastAddress validates IPv4 multicast ranges', async (t) => {
+  await t.test('returns true for multicast addresses', () => {
+    assert.equal(RokuClient.isMulticastAddress('224.0.0.1'), true);
+    assert.equal(RokuClient.isMulticastAddress('239.255.255.255'), true);
+  });
+
+  await t.test('returns false for non-multicast or invalid addresses', () => {
+    assert.equal(RokuClient.isMulticastAddress('223.255.255.255'), false);
+    assert.equal(RokuClient.isMulticastAddress('240.0.0.0'), false);
+    assert.equal(RokuClient.isMulticastAddress('256.0.0.1'), false);
+    assert.equal(RokuClient.isMulticastAddress('1.2.3'), false);
+    assert.equal(RokuClient.isMulticastAddress('a.b.c.d'), false);
+    assert.equal(RokuClient.isMulticastAddress(null), false);
+  });
+});
+
+test('addDevice upserts and updates current device', () => {
+  const client = new RokuClient();
+  const first = {
+    host: 'http://192.168.1.100:8060',
+    ip: '192.168.1.100',
+    friendlyName: 'Living Room',
+    modelName: 'Roku Ultra',
+    serialNumber: 'abc123'
+  };
+
+  const second = {
+    host: 'http://192.168.1.100:8060',
+    ip: '192.168.1.100',
+    friendlyName: 'Living Room Updated',
+    modelName: 'Roku Ultra',
+    serialNumber: 'abc123'
+  };
+
+  client.addDevice(first);
+  assert.equal(client.getDevices().length, 1);
+  assert.equal(client.getCurrentDevice().friendlyName, 'Living Room');
+
+  client.addDevice(second);
+  assert.equal(client.getDevices().length, 1);
+  assert.equal(client.getCurrentDevice().friendlyName, 'Living Room Updated');
+});
+
+test('probeDeviceInfo returns info and throws on failure', async (t) => {
+  const httpServer = http.createServer((req, res) => {
+    if (req.url === '/query/device-info') {
+      res.writeHead(200, { 'Content-Type': 'application/xml' });
+      res.end('<device-info><friendly-device-name>Probe Roku</friendly-device-name><model-name>ProbeModel</model-name><serial-number>probe-123</serial-number><supports-audio-volume-control>true</supports-audio-volume-control><volume>14</volume><is-muted>false</is-muted></device-info>');
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  const host = `http://127.0.0.1:${httpServer.address().port}`;
+
+  t.after(async () => {
+    await new Promise((resolve) => httpServer.close(resolve));
+  });
+
+  const client = new RokuClient();
+  const info = await client.probeDeviceInfo(host);
+  assert.equal(info.friendlyName, 'Probe Roku');
+  assert.equal(info.modelName, 'ProbeModel');
+  assert.equal(info.serialNumber, 'probe-123');
+  assert.equal(info.supportsAudioVolumeControl, true);
+  assert.equal(info.volume, 14);
+  assert.equal(info.muted, false);
+
+  await assert.rejects(async () => {
+    await client.probeDeviceInfo('http://127.0.0.1:65529');
+  });
+});
+
+test('discoverDevices ignores SSDP responses with invalid LOCATION URLs', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalCreateSocket = dgram.createSocket;
+  let infoCalls = 0;
+
+  os.networkInterfaces = () => ({
+    eth0: [{ address: '192.168.1.10', family: 'IPv4', internal: false }]
+  });
+
+  dgram.createSocket = () => {
+    const handlers = {};
+    return {
+      on: (event, handler) => {
+        handlers[event] = handler;
+      },
+      bind: (_port, _address, cb) => {
+        if (typeof cb === 'function') {
+          cb();
+        }
+      },
+      send: (_buf, _offset, _length, _port, _address, cb) => {
+        if (typeof cb === 'function') {
+          cb();
+        }
+        if (handlers.message) {
+          const response = [
+            'HTTP/1.1 200 OK',
+            'ST: roku:ecp',
+            'USN: uuid:roku:ecp:device',
+            'LOCATION: this-is-not-a-valid-url',
+            ''
+          ].join('\r\n');
+          setImmediate(() => {
+            handlers.message(Buffer.from(response), { address: '192.168.1.50' });
+          });
+        }
+      },
+      close: () => {}
+    };
+  };
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    dgram.createSocket = originalCreateSocket;
+  });
+
+  const client = new RokuClient();
+  client.getDeviceInfo = async () => {
+    infoCalls += 1;
+    return {
+      friendlyName: 'Should Not Be Used',
+      modelName: 'Ignored',
+      serialNumber: 'ignored'
+    };
+  };
+
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 1900,
+    discoveryTimeout: 40
+  });
+
+  assert.equal(infoCalls, 0);
+  assert.equal(devices.length, 0);
+});
+
+test('launchApp retries transient errors and succeeds', async (t) => {
+  const originalRetryAttempts = RokuClient.CONTROL_RETRY_ATTEMPTS;
+  const originalRetryDelay = RokuClient.CONTROL_RETRY_DELAY_MS;
+  RokuClient.CONTROL_RETRY_ATTEMPTS = 2;
+  RokuClient.CONTROL_RETRY_DELAY_MS = 0;
+
+  const client = new RokuClient();
+  client.setDevice({ host: 'http://192.168.1.50:8060' });
+
+  let attempts = 0;
+  client.httpClient = {
+    post: async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        const error = new Error('timeout');
+        error.code = 'ETIMEDOUT';
+        throw error;
+      }
+    }
+  };
+
+  t.after(() => {
+    RokuClient.CONTROL_RETRY_ATTEMPTS = originalRetryAttempts;
+    RokuClient.CONTROL_RETRY_DELAY_MS = originalRetryDelay;
+  });
+
+  const launched = await client.launchApp('123');
+  assert.equal(launched, true);
+  assert.equal(attempts, 2);
+});
+
+test('sendKey does not retry non-retryable errors', async (t) => {
+  const originalRetryAttempts = RokuClient.CONTROL_RETRY_ATTEMPTS;
+  const originalRetryDelay = RokuClient.CONTROL_RETRY_DELAY_MS;
+  RokuClient.CONTROL_RETRY_ATTEMPTS = 3;
+  RokuClient.CONTROL_RETRY_DELAY_MS = 0;
+
+  const client = new RokuClient();
+  client.setDevice({ host: 'http://192.168.1.50:8060' });
+
+  let attempts = 0;
+  client.httpClient = {
+    post: async () => {
+      attempts += 1;
+      const error = new Error('bad request');
+      error.code = 'ERR_BAD_REQUEST';
+      throw error;
+    }
+  };
+
+  t.after(() => {
+    RokuClient.CONTROL_RETRY_ATTEMPTS = originalRetryAttempts;
+    RokuClient.CONTROL_RETRY_DELAY_MS = originalRetryDelay;
+  });
+
+  const sent = await client.sendKey('Home');
+  assert.equal(sent, false);
+  assert.equal(attempts, 1);
+});
+
+test('getApps skips malformed app entries', async () => {
+  const client = new RokuClient();
+  client.setDevice({ host: 'http://192.168.1.50:8060' });
+  client.httpClient = {
+    get: async () => ({
+      data: '<apps><app id="1" version="1.0">Netflix</app><app/><app id="2"/></apps>'
+    })
+  };
+
+  const apps = await client.getApps();
+  assert.deepEqual(apps, [
+    { id: '1', name: 'Netflix', version: '1.0' },
+    { id: '2', name: 'Unknown App', version: undefined }
+  ]);
+});
+
+test('parseBoolean and parseNumber normalize mixed values', () => {
+  assert.equal(RokuClient.parseBoolean('yes'), true);
+  assert.equal(RokuClient.parseBoolean('0'), false);
+  assert.equal(RokuClient.parseBoolean('unknown'), null);
+
+  assert.equal(RokuClient.parseNumber('12'), 12);
+  assert.equal(RokuClient.parseNumber('12.5'), 12.5);
+  assert.equal(RokuClient.parseNumber('NaN'), null);
+  assert.equal(RokuClient.parseNumber(''), null);
 });
