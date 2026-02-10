@@ -4,6 +4,8 @@
   "description": "A Roku Remote Control Electron Application",
   "main": "main.js",
   "scripts": {
+    "postinstall": "node scripts/patch_electron_plist.js",
+    "prestart": "node scripts/patch_electron_plist.js",
     "start": "electron .",
     "build:mac": "electron-builder --mac --arm64",
     "test": "node --test test/roku-client.test.js"

@@ -44,7 +44,7 @@ A powerful Electron-based remote control application for Roku devices, built for
    ```
 
 > **macOS note:** Discovery uses SSDP multicast. When prompted on first launch, allow the app to access your local network in macOS privacy settings or firewall, and make sure your Mac is on the same Wi‑Fi/Ethernet network as the Roku.  
-> If you run via `npm start`, macOS may list the permission under **Electron** (not RemoteKu) in **System Settings → Privacy & Security → Local Network**.
+> If you run via `npm start`, RemoteKu patches Electron’s `Info.plist` on install/start so the Local Network prompt can appear (it may show under **Electron**) in **System Settings → Privacy & Security → Local Network**.
 
 ## Usage
 
