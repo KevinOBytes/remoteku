@@ -228,7 +228,7 @@ async function loadNetworkInfo() {
   try {
     const interfaces = await rokuAPI.getNetworkInfo();
     const addresses = interfaces
-      .filter(item => item.family === 'IPv4' && !item.internal)
+      .filter(item => (item.family === 'IPv4' || item.family === 4) && !item.internal)
       .map(item => `${item.name}: ${item.address}`);
     localIps.textContent = addresses.length > 0 ? addresses.join(', ') : 'No external IPv4 interfaces detected';
   } catch (error) {
