@@ -148,6 +148,29 @@ test('scanLocalSubnetsForRoku finds devices on private subnet', async (t) => {
   assert.ok(probedHosts.includes('http://192.168.1.9:8060'));
 });
 
+test('scanLocalSubnetsForRoku returns structured empty result when no IPv4 interfaces exist', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+
+  os.networkInterfaces = () => ({
+    en0: [{
+      address: 'fe80::1',
+      family: 'IPv6',
+      internal: false
+    }]
+  });
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+  });
+
+  const client = new RokuClient();
+  const result = await client.scanLocalSubnetsForRoku({ timeout: 1, concurrency: 1 });
+  assert.deepEqual(result, {
+    devices: [],
+    permissionDenied: false
+  });
+});
+
 test('discoverDevices adds device even when device-info fails', async (t) => {
   const udpServer = dgram.createSocket('udp4');
   const httpServer = http.createServer((req, res) => {
@@ -471,6 +494,53 @@ test('discoverDevices falls back to default binding when only internal interface
   });
 
   assert.equal(boundAddress, '0.0.0.0');
+  assert.equal(sendCalled, true);
+  assert.equal(devices.length, 0);
+  assert.equal(client.getCurrentDevice(), null);
+});
+
+test('discoverDevices handles numeric IPv4 family values from os.networkInterfaces', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalCreateSocket = dgram.createSocket;
+  let boundAddress = null;
+  let sendCalled = false;
+
+  os.networkInterfaces = () => ({
+    eth0: [{ address: '192.168.1.10', family: 4, internal: false }]
+  });
+
+  const fakeSocket = {
+    on: () => {},
+    bind: (_port, address, cb) => {
+      boundAddress = address;
+      if (typeof cb === 'function') {
+        cb();
+      }
+    },
+    send: (_buf, _offset, _length, _port, _address, cb) => {
+      sendCalled = true;
+      if (typeof cb === 'function') {
+        cb();
+      }
+    },
+    close: () => {}
+  };
+
+  dgram.createSocket = () => fakeSocket;
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    dgram.createSocket = originalCreateSocket;
+  });
+
+  const client = new RokuClient();
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 1900,
+    discoveryTimeout: 25
+  });
+
+  assert.equal(boundAddress, '192.168.1.10');
   assert.equal(sendCalled, true);
   assert.equal(devices.length, 0);
   assert.equal(client.getCurrentDevice(), null);

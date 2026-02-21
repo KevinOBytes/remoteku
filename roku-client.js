@@ -72,6 +72,7 @@ class RokuClient {
         let isSettled = false;
 
         const foundDevices = [];
+        const pendingProbes = [];
 
         const ssdpMessage = Buffer.from(
           'M-SEARCH * HTTP/1.1\r\n' +
@@ -93,7 +94,7 @@ class RokuClient {
           }
         };
 
-        const messageHandler = async (msg, rinfo) => {
+        const messageHandler = (msg, rinfo) => {
           const message = msg.toString();
           console.log(`RokuClient: Received message on ${interfaceIp} from ${rinfo.address}`);
           const parsed = RokuClient.parseSsdpResponse(message);
@@ -110,18 +111,40 @@ class RokuClient {
             return;
           }
 
-          try {
-            console.log(`RokuClient: Fetching device info for ${host}`);
-            const deviceInfo = await this.getDeviceInfo(host);
-            console.log(`RokuClient: Found device ${host} (${deviceInfo.friendlyName})`);
-            foundDevices.push({
-              host,
-              ip: rinfo.address,
-              ...deviceInfo
-            });
-          } catch (e) {
-            console.warn(`RokuClient: Failed to fetch device info for ${host}: ${e.message}`);
+          if (foundDevices.some(d => d.host === host)) {
+            return;
           }
+
+          const probePromise = (async () => {
+            try {
+              console.log(`RokuClient: Fetching device info for ${host} (2s timeout)`);
+              let deviceInfo;
+              try {
+                deviceInfo = await this.getDeviceInfo(host, { timeout: 2000 });
+              } catch (e) {
+                console.warn(`RokuClient: Probe failed for ${host}, using defaults:`, e.message);
+                deviceInfo = {
+                  friendlyName: 'Roku Device',
+                  modelName: 'Unknown',
+                  serialNumber: 'Unknown',
+                  supportsAudioVolumeControl: null,
+                  volume: null,
+                  muted: null
+                };
+              }
+              console.log(`RokuClient: Found device ${host} (${deviceInfo.friendlyName})`);
+              if (!foundDevices.some(d => d.host === host)) {
+                foundDevices.push({
+                  host,
+                  ip: rinfo.address,
+                  ...deviceInfo
+                });
+              }
+            } catch (e) {
+              console.warn(`RokuClient: Failed to process device info for ${host}: ${e.message}`);
+            }
+          })();
+          pendingProbes.push(probePromise);
         };
 
         socket.on('message', messageHandler);
@@ -185,9 +208,11 @@ class RokuClient {
           });
         });
 
-        setTimeout(() => {
-          console.log(`RokuClient: Timeout on ${interfaceIp}. Found ${foundDevices.length} devices.`);
+        setTimeout(async () => {
           cleanup();
+          console.log(`RokuClient: SSDP timeout on ${interfaceIp}. Waiting for ${pendingProbes.length} pending probes...`);
+          await Promise.allSettled(pendingProbes);
+          console.log(`RokuClient: All probes finished on ${interfaceIp}. Found ${foundDevices.length} devices.`);
           resolve(foundDevices);
         }, discoveryTimeout);
       });
@@ -299,9 +324,9 @@ class RokuClient {
   }
 
   // Get device information (best-effort, returns defaults on failure)
-  async getDeviceInfo(host) {
+  async getDeviceInfo(host, options = {}) {
     try {
-      return await this.probeDeviceInfo(host);
+      return await this.probeDeviceInfo(host, options);
     } catch (error) {
       return {
         friendlyName: 'Roku Device',
