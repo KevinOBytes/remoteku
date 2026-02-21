@@ -51,7 +51,7 @@ class RokuClient {
     // Gather all valid IPv4 interfaces (non-internal)
     for (const name of Object.keys(interfaces)) {
       for (const net of interfaces[name]) {
-        if (net.family === 'IPv4' && !net.internal) {
+        if (RokuClient.isIPv4Family(net.family) && !net.internal) {
           validInterfaces.push({ name, address: net.address });
           console.log(`RokuClient: Found interface ${name} (${net.address})`);
         }
@@ -155,16 +155,10 @@ class RokuClient {
               socket.setMulticastLoopback(true);
             }
             if (RokuClient.isMulticastAddress(address)) {
-              if (typeof socket.setMulticastInterface === 'function' && interfaceIp && interfaceIp !== '0.0.0.0') {
-                socket.setMulticastInterface(interfaceIp);
-              }
-              if (typeof socket.addMembership === 'function') {
-                if (interfaceIp && interfaceIp !== '0.0.0.0') {
-                  socket.addMembership(address, interfaceIp);
-                } else {
-                  socket.addMembership(address);
-                }
-              }
+              // Note: Multicast membership (addMembership) and interface selection
+              // (setMulticastInterface) are intentionally omitted for ACTIVE discovery.
+              // On macOS in an Electron context, binding to a random port and calling
+              // addMembership can result in EHOSTUNREACH errors when sending M-SEARCH.
             }
           } catch (e) {
             console.warn(`RokuClient: Socket config failed on ${interfaceIp}:`, e.message);
@@ -222,8 +216,8 @@ class RokuClient {
           timeout: fallbackScanTimeout,
           concurrency: fallbackScanConcurrency
         });
-        const fallbackDevices = fallbackResult.devices;
-        if (fallbackResult.permissionDenied) {
+        const fallbackDevices = Array.isArray(fallbackResult?.devices) ? fallbackResult.devices : [];
+        if (fallbackResult?.permissionDenied) {
           permissionDenied = true;
         }
         for (const device of fallbackDevices) {
@@ -488,6 +482,10 @@ class RokuClient {
       firstOctet <= RokuClient.MULTICAST_RANGE_END;
   }
 
+  static isIPv4Family(family) {
+    return family === 'IPv4' || family === 4;
+  }
+
   static parseSsdpResponse(message) {
     if (typeof message !== 'string') {
       return null;
@@ -660,10 +658,7 @@ class RokuClient {
 
     for (const name of Object.keys(interfaces)) {
       for (const net of interfaces[name]) {
-        if (net.family !== 'IPv4' || net.internal) {
-          continue;
-        }
-        if (!RokuClient.isPrivateIPv4(net.address)) {
+        if (!RokuClient.isIPv4Family(net.family) || net.internal) {
           continue;
         }
 
@@ -710,8 +705,8 @@ class RokuClient {
     }
 
     if (subnets.length === 0) {
-      console.log('RokuClient: No private IPv4 subnets available for fallback scan.');
-      return [];
+      console.log('RokuClient: No IPv4 subnets available for fallback scan.');
+      return { devices: [], permissionDenied: false };
     }
 
     const targets = [];
@@ -728,7 +723,7 @@ class RokuClient {
     }
 
     if (targets.length === 0) {
-      return [];
+      return { devices: [], permissionDenied: false };
     }
 
     const scanTimeout = typeof timeout === 'number' ? timeout : RokuClient.FALLBACK_SCAN_TIMEOUT;
