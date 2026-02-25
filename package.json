@@ -8,6 +8,7 @@
     "prestart": "node scripts/patch_electron_plist.js",
     "start": "electron .",
     "build:mac": "electron-builder --mac --arm64",
+    "dist": "electron-builder --publish never",
     "test": "node --test test/roku-client.test.js"
   },
   "keywords": [
