@@ -60,10 +60,22 @@ function isTextEntryContext(target) {
   return Boolean(target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
 }
 
+function triggerVisualFeedback(keyElement) {
+  if (!keyElement) return;
+  keyElement.classList.add('active-press');
+  setTimeout(() => {
+    keyElement.classList.remove('active-press');
+  }, 150);
+}
+
 async function sendRemoteKey(
   key,
   { pendingMessage = null, pendingDuration = KEY_PRESS_FEEDBACK_DURATION } = {}
 ) {
+  // Trigger UI feedback
+  const keyElement = document.querySelector(`[data-key="${key}"]`);
+  triggerVisualFeedback(keyElement);
+
   if (pendingMessage) {
     setStatus(pendingMessage, { duration: pendingDuration, state: 'info' });
   }
@@ -544,6 +556,10 @@ document.querySelectorAll('.quck-app-btn').forEach(button => {
   button.addEventListener('click', async (e) => {
     const appId = e.currentTarget.dataset.quickApp;
     if (!appId) return;
+
+    // Trigger UI feedback
+    triggerVisualFeedback(e.currentTarget);
+
     const appName = e.currentTarget.textContent.trim();
 
     setStatus(`Launching ${appName}...`, { duration: 0, state: 'info' });
@@ -570,6 +586,17 @@ window.addEventListener('DOMContentLoaded', () => {
   loadNetworkInfo();
   discoverDevices();
 });
+
+// Mini Mode Toggle
+let isMiniMode = false;
+const miniModeToggleBtn = document.getElementById('mini-mode-toggle');
+if (miniModeToggleBtn) {
+  miniModeToggleBtn.addEventListener('click', () => {
+    isMiniMode = !isMiniMode;
+    document.body.classList.toggle('mini-mode', isMiniMode);
+    rokuAPI.toggleMiniMode(isMiniMode);
+  });
+}
 
 // Keyboard shortcuts
 document.addEventListener('keydown', async (e) => {
@@ -621,7 +648,7 @@ document.addEventListener('keydown', async (e) => {
     'Enter': 'Select',
     ' ': 'Play',
     'Backspace': 'Back',
-    'Escape': 'Back'
+    'Escape': 'Home'
   };
 
   const key = keyMap[e.key];
