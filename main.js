@@ -25,8 +25,8 @@ const rokuClient = new RokuClient();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 900,
+    width: 900,
+    height: 950,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
