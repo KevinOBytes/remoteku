@@ -41,6 +41,10 @@ function createWindow() {
   // Open DevTools in development
   // mainWindow.webContents.openDevTools();
 
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer] ${message} (${sourceId}:${line})`);
+  });
+
   mainWindow.on('closed', function () {
     mainWindow = null;
   });

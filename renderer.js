@@ -1,6 +1,5 @@
 // Use the exposed Roku API from preload script
-const rokuAPI = window.rokuAPI;
-
+// rokuAPI is injected globally by preload.js using contextBridge
 // DOM elements
 const deviceSelect = document.getElementById('device-select');
 const refreshDevicesBtn = document.getElementById('refresh-devices');
