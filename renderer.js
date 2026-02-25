@@ -488,27 +488,46 @@ refreshAppsBtn.addEventListener('click', () => {
   loadApps();
 });
 
+// Tabs Logic
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabPanes = document.querySelectorAll('.tab-pane');
+
+tabBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const targetId = btn.getAttribute('data-tab');
+    if (!targetId) return;
+
+    // Toggle active classes
+    tabBtns.forEach(b => b.classList.remove('active'));
+    tabPanes.forEach(p => p.classList.remove('active'));
+
+    btn.classList.add('active');
+    document.getElementById(targetId).classList.add('active');
+  });
+});
+
 // Handle remote control buttons
-document.querySelectorAll('.btn[data-key]').forEach(button => {
+document.querySelectorAll('[data-key]').forEach(button => {
   button.addEventListener('click', async (e) => {
-    const key = e.target.dataset.key;
+    const key = e.currentTarget.dataset.key;
+    if (!key) return;
 
     // Special handling for play/pause toggle
-    if (e.target.id === 'play-pause-toggle') {
+    if (e.currentTarget.id === 'play-pause-toggle') {
       const wasPlaying = isPlaying;
       const toggleKey = isPlaying ? 'Pause' : 'Play';
       isPlaying = !isPlaying;
       // Update button display
-      e.target.textContent = isPlaying ? '⏸' : '▶';
-      e.target.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+      e.currentTarget.textContent = isPlaying ? '⏸' : '▶';
+      e.currentTarget.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
       const sent = await sendRemoteKey(toggleKey, {
         pendingMessage: `Sending ${toggleKey}...`,
         pendingDuration: KEY_PRESS_FEEDBACK_DURATION
       });
       if (!sent) {
         isPlaying = wasPlaying;
-        e.target.textContent = isPlaying ? '⏸' : '▶';
-        e.target.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+        e.currentTarget.textContent = isPlaying ? '⏸' : '▶';
+        e.currentTarget.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
       }
       return;
     }
@@ -517,6 +536,28 @@ document.querySelectorAll('.btn[data-key]').forEach(button => {
       pendingMessage: `Sending ${key}...`,
       pendingDuration: KEY_PRESS_FEEDBACK_DURATION
     });
+  });
+});
+
+// Handle Quick App Launch buttons
+document.querySelectorAll('.quck-app-btn').forEach(button => {
+  button.addEventListener('click', async (e) => {
+    const appId = e.currentTarget.dataset.quickApp;
+    if (!appId) return;
+    const appName = e.currentTarget.textContent.trim();
+
+    setStatus(`Launching ${appName}...`, { duration: 0, state: 'info' });
+    try {
+      const success = await rokuAPI.launchApp(appId);
+      if (success) {
+        setStatus(`Launched ${appName}`, { state: 'success' });
+      } else {
+        setStatus(`Failed to launch ${appName}`, { state: 'error' });
+      }
+    } catch (error) {
+      console.error('Error launching quick app:', error);
+      setStatus(`Failed to launch ${appName}`, { state: 'error' });
+    }
   });
 });
 
@@ -536,6 +577,42 @@ document.addEventListener('keydown', async (e) => {
     return;
   }
 
+  const active = document.activeElement;
+  const isInteractiveFocused = active && (
+    active.tagName === 'BUTTON' ||
+    active.tagName === 'A' ||
+    active.tagName === 'SELECT' ||
+    active.getAttribute('role') === 'button' ||
+    active.classList.contains('tab-btn')
+  );
+
+  // If focused on an interactive element, allow Space and Enter to trigger native clicks
+  if (isInteractiveFocused && (e.key === 'Enter' || e.key === ' ')) {
+    return;
+  }
+
+  // Allow native arrow key navigation for select dropdowns 
+  if (active && active.tagName === 'SELECT' && e.key.startsWith('Arrow')) {
+    return;
+  }
+
+  // Handle Tab navigation with Left/Right arrows if a tab is focused
+  if (active && active.classList.contains('tab-btn')) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const tabs = Array.from(document.querySelectorAll('.tab-btn'));
+      const currentIndex = tabs.indexOf(active);
+      if (currentIndex > -1) {
+        let nextIndex = e.key === 'ArrowRight' ? currentIndex + 1 : currentIndex - 1;
+        if (nextIndex >= tabs.length) nextIndex = 0;
+        if (nextIndex < 0) nextIndex = tabs.length - 1;
+        tabs[nextIndex].focus();
+        tabs[nextIndex].click();
+      }
+      return;
+    }
+  }
+
   const keyMap = {
     'ArrowUp': 'Up',
     'ArrowDown': 'Down',
@@ -549,7 +626,9 @@ document.addEventListener('keydown', async (e) => {
 
   const key = keyMap[e.key];
   if (key) {
-    e.preventDefault();
+    if (e.key === 'Backspace' || e.key === ' ') {
+      e.preventDefault(); // Prevent navigating browser history or scrolling
+    }
     const sent = await sendRemoteKey(key, {
       pendingMessage: `Sending ${key}...`,
       pendingDuration: KEY_PRESS_FEEDBACK_DURATION
