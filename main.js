@@ -26,7 +26,8 @@ const rokuClient = new RokuClient();
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
-    height: 950,
+    height: 1030,
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -116,6 +117,21 @@ ipcMain.handle('roku:launch-app', async (event, appId) => {
 
 ipcMain.handle('roku:send-key', async (event, key) => {
   return await rokuClient.sendKey(key);
+});
+
+// Window State Handlers
+ipcMain.handle('window:toggle-mini-mode', (event, isMiniMode) => {
+  if (!mainWindow) return;
+
+  if (isMiniMode) {
+    // Shrink down strictly to remote dimensions
+    mainWindow.setSize(340, 780, true);
+    mainWindow.setAlwaysOnTop(true, 'floating');
+  } else {
+    // Restore default dimensions
+    mainWindow.setSize(900, 1030, true);
+    mainWindow.setAlwaysOnTop(false);
+  }
 });
 
 app.on('ready', createWindow);

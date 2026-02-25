@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld('rokuAPI', {
   getNetworkInfo: () => ipcRenderer.invoke('roku:get-network-info'),
   getApps: () => ipcRenderer.invoke('roku:get-apps'),
   launchApp: (appId) => ipcRenderer.invoke('roku:launch-app', appId),
-  sendKey: (key) => ipcRenderer.invoke('roku:send-key', key)
+  sendKey: (key) => ipcRenderer.invoke('roku:send-key', key),
+  toggleMiniMode: (isMiniMode) => ipcRenderer.invoke('window:toggle-mini-mode', isMiniMode)
 });

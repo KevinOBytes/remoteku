@@ -18,9 +18,19 @@
           <p class="subtitle">A polished Roku remote for your local network.</p>
         </div>
       </div>
-      <div class="status-pill">
-        <span id="status-dot" class="status-dot idle" aria-hidden="true"></span>
-        <span id="status-message">Ready</span>
+      <div class="header-actions" style="display: flex; gap: 12px; align-items: center;">
+        <button id="mini-mode-toggle" class="btn btn-control"
+          style="padding: 8px; border-radius: 8px; -webkit-app-region: no-drag;" title="Toggle Mini Remote">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="8" y="2" width="8" height="20" rx="4" ry="4"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+          </svg>
+        </button>
+        <div class="status-pill">
+          <span id="status-dot" class="status-dot idle" aria-hidden="true"></span>
+          <span id="status-message">Ready</span>
+        </div>
       </div>
     </header>
     <nav class="tabs-nav card" style="--delay: 0.02s; margin-bottom: 24px; padding: 0; overflow: hidden;">
@@ -119,53 +129,155 @@
           <div class="remote-control">
             <!-- Top Controls -->
             <div class="button-row top-row">
-              <button class="btn btn-control btn-round btn-power" data-key="Power" title="Power">⏻</button>
-              <button class="btn btn-control btn-round" data-key="Back" title="Back">←</button>
-              <button class="btn btn-control btn-round btn-home" data-key="Home" title="Home">⌂</button>
+              <button class="btn btn-control btn-round btn-power" data-key="Power" title="Power">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                  <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+              </button>
+              <button class="btn btn-control btn-round" data-key="Back" title="Back">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12"></line>
+                  <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+              </button>
+              <button class="btn btn-control btn-round btn-home" data-key="Home" title="Home">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+              </button>
             </div>
 
             <!-- Directional Pad -->
             <div class="nav-pad-container">
               <div class="nav-pad">
-                <button class="btn btn-nav btn-up" data-key="Up" aria-label="Up">▲</button>
-                <button class="btn btn-nav btn-left" data-key="Left" aria-label="Left">◀</button>
+                <button class="btn btn-nav btn-up" data-key="Up" aria-label="Up">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                  </svg>
+                </button>
+                <button class="btn btn-nav btn-left" data-key="Left" aria-label="Left">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
+                </button>
                 <button class="btn btn-select" data-key="Select">OK</button>
-                <button class="btn btn-nav btn-right" data-key="Right" aria-label="Right">▶</button>
-                <button class="btn btn-nav btn-down" data-key="Down" aria-label="Down">▼</button>
+                <button class="btn btn-nav btn-right" data-key="Right" aria-label="Right">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+                <button class="btn btn-nav btn-down" data-key="Down" aria-label="Down">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
               </div>
             </div>
 
             <!-- Playback & Options -->
             <div class="playback-controls">
               <div class="button-row">
-                <button class="btn btn-media btn-round" data-key="Rev" title="Rewind">⏪</button>
+                <button class="btn btn-media btn-round" data-key="Rev" title="Rewind">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                    <polygon points="22 19 13 12 22 5 22 19"></polygon>
+                  </svg>
+                </button>
                 <button class="btn btn-media btn-round btn-play" data-key="Play" id="play-pause-toggle"
-                  aria-label="Play">▶/⏸</button>
-                <button class="btn btn-media btn-round" data-key="Fwd" title="Fast Forward">⏩</button>
+                  aria-label="Play">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  </svg>
+                </button>
+                <button class="btn btn-media btn-round" data-key="Fwd" title="Fast Forward">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                    <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                  </svg>
+                </button>
               </div>
               <div class="button-row">
-                <button class="btn btn-media btn-round" data-key="InstantReplay" title="Instant Replay">↺</button>
-                <button class="btn btn-media btn-round" data-key="Info" title="Options">*</button>
-                <button class="btn btn-media btn-round" data-key="Search" title="Search">🔍</button>
+                <button class="btn btn-media btn-round" data-key="InstantReplay" title="Instant Replay">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 2v6h6"></path>
+                    <path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path>
+                  </svg>
+                </button>
+                <button class="btn btn-media btn-round" data-key="Info" title="Options">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon
+                      points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                    </polygon>
+                  </svg>
+                </button>
+                <button class="btn btn-media btn-round" data-key="Search" title="Search">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </button>
               </div>
             </div>
 
             <!-- Volume & Channel -->
             <div class="bottom-controls">
               <div class="vertical-rocker">
-                <button class="btn btn-volume btn-rocker-top" data-key="VolumeUp" title="Volume Up">+</button>
+                <button class="btn btn-volume btn-rocker-top" data-key="VolumeUp" title="Volume Up">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
                 <div class="rocker-label">VOL</div>
-                <button class="btn btn-volume btn-rocker-bottom" data-key="VolumeDown" title="Volume Down">-</button>
+                <button class="btn btn-volume btn-rocker-bottom" data-key="VolumeDown" title="Volume Down">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
               </div>
 
               <div class="center-buttons">
-                <button class="btn btn-volume btn-round" data-key="VolumeMute" title="Mute">🔇</button>
+                <button class="btn btn-volume btn-round" data-key="VolumeMute" title="Mute">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <line x1="23" y1="9" x2="17" y2="15"></line>
+                    <line x1="17" y1="9" x2="23" y2="15"></line>
+                  </svg>
+                </button>
               </div>
 
               <div class="vertical-rocker">
-                <button class="btn btn-channel btn-rocker-top" data-key="ChannelUp" title="Channel Up">∧</button>
+                <button class="btn btn-channel btn-rocker-top" data-key="ChannelUp" title="Channel Up">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                  </svg>
+                </button>
                 <div class="rocker-label">CH</div>
-                <button class="btn btn-channel btn-rocker-bottom" data-key="ChannelDown" title="Channel Down">∨</button>
+                <button class="btn btn-channel btn-rocker-bottom" data-key="ChannelDown" title="Channel Down">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
               </div>
             </div>
 
