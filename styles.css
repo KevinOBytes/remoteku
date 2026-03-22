@@ -706,8 +706,8 @@ input:focus {
 .center-buttons {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding-bottom: 4px;
+  justify-content: center;
+  align-items: center;
 }
 
 .apps-section {

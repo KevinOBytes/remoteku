@@ -17,7 +17,7 @@
     "remote",
     "electron"
   ],
-  "author": "",
+  "author": "KevinOBytes",
   "license": "ISC",
   "devDependencies": {
     "electron": "^39.2.7",
@@ -63,6 +63,13 @@
     },
     "linux": {
       "target": "AppImage"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "KevinOBytes",
+        "repo": "remoteku"
+      }
+    ]
   }
 }
