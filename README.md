@@ -4,21 +4,20 @@ A powerful Electron-based remote control application for Roku devices, built for
 
 ## Features
 
-- **Automatic Device Discovery**: Finds Roku devices on your network using SSDP discovery
-- **Multi-Device Support**: Select from multiple Roku devices on your network
-- **Full Remote Control**: Complete remote control interface including:
+- **Mini Remote Mode**: Instantly collapse the UI into a minimal, floating control that stays purely out of the way on top of your workflow.
+- **Photorealistic Interface**: A premium, "next-gen" design with ambient glow tracking, frameless native aesthetics, scalable SVG icons, and deeply responsive CSS.
+- **Automatic Device Discovery**: Finds Roku devices on your network using SSDP discovery.
+- **Multi-Device Support**: Select from multiple Roku devices on your network.
+- **Full Remote Control**: Complete control interface featuring:
   - Navigation pad (up, down, left, right, OK/select)
-  - Control buttons (power, home, back, star)
+  - Options (*), Search, and Channel +/- support
   - Media playback controls (play, pause, play/pause toggle, fast forward, rewind, instant replay)
   - Volume controls (volume up, volume down, mute)
-  - Search functionality
-- **App Launcher**: Browse and launch installed Roku apps via an intuitive tile interface
-- **Keyboard Shortcuts**: Control your Roku using arrow keys, Enter, Space, and more
-- **Connection Diagnostics**: Local IP visibility, discovery status, and device reachability testing
-- **Auto Reconnect**: Remembers the last device and reconnects on launch
-- **Audio Status (Best-effort)**: Displays volume/mute info when available from the device
-- **Reliable Commands**: Retries transient network failures for launch and keypress actions
-- **Modern UI**: Clean, responsive design with a beautiful gradient interface
+- **App Launcher**: Browse and launch installed Roku apps via an intuitive tile interface.
+- **Native Keyboard Shortcuts**: Control your Roku directly via arrow keys, Enter, Space, and Escape/Home bridging.
+- **Connection Diagnostics**: Local IP visibility, discovery status, and device reachability testing.
+- **Auto Reconnect**: Remembers the last device and reconnects seamlessly.
+- **Reliable Commands**: Retries transient network failures for launch and keypress actions under the hood.
 
 ## Installation
 
