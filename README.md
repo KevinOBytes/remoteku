@@ -2,6 +2,58 @@
 
 A powerful Electron-based remote control application for Roku devices, built for macOS and other platforms.
 
+---
+
+## Download
+
+Grab the latest release for your platform:
+
+| Platform | Download | Architecture |
+|----------|----------|--------------|
+| **macOS** | [RemoteKu-1.1.0-arm64.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-1.1.0-arm64.dmg) | Apple Silicon (M1/M2/M3/M4) |
+| **Windows** | [RemoteKu-Setup-1.1.0.exe](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-Setup-1.1.0.exe) | x64 |
+| **Linux** | [RemoteKu-1.1.0.AppImage](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-1.1.0.AppImage) | x64 |
+
+> [Browse all releases →](https://github.com/KevinOBytes/remoteku/releases)
+
+---
+
+## Install Instructions
+
+### macOS (.dmg)
+
+1. Download the `.dmg` file from the table above.
+2. Open the `.dmg` and drag **RemoteKu** into your **Applications** folder.
+3. On first launch, macOS Gatekeeper will block the app because it's unsigned. To bypass:
+   - Open **System Settings → Privacy & Security**.
+   - Scroll down — you'll see a message about RemoteKu being blocked.
+   - Click **"Open Anyway"**, then confirm.
+   - Alternatively, right-click the app in Finder → **Open** → **Open** to override once.
+4. When prompted, allow RemoteKu access to your local network (System Settings → Privacy & Security → Local Network).
+
+### Windows (.exe)
+
+1. Download the `.exe` installer from the table above.
+2. Run the installer — Windows SmartScreen may warn about an unrecognized publisher.
+   - Click **"More info"** → **"Run anyway"** to proceed.
+3. Follow the setup wizard to complete installation.
+4. Launch RemoteKu from the Start Menu or Desktop shortcut.
+
+### Linux (.AppImage)
+
+1. Download the `.AppImage` file from the table above.
+2. Make it executable:
+   ```bash
+   chmod +x RemoteKu-1.1.0.AppImage
+   ```
+3. Run it:
+   ```bash
+   ./RemoteKu-1.1.0.AppImage
+   ```
+4. (Optional) Move it to `/usr/local/bin` or use [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) for desktop integration.
+
+---
+
 ## Features
 
 - **Mini Remote Mode**: Instantly collapse the UI into a minimal, floating control that stays purely out of the way on top of your workflow.
@@ -18,32 +70,6 @@ A powerful Electron-based remote control application for Roku devices, built for
 - **Connection Diagnostics**: Local IP visibility, discovery status, and device reachability testing.
 - **Auto Reconnect**: Remembers the last device and reconnects seamlessly.
 - **Reliable Commands**: Retries transient network failures for launch and keypress actions under the hood.
-
-## Installation
-
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/KevinOBytes/remoteku.git
-   cd remoteku
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the application (from the repo root):
-   ```bash
-   npm start
-   ```
-
-4. (Optional) Run the tests:
-   ```bash
-   npm test
-   ```
-
-> **macOS note:** Discovery uses SSDP multicast. When prompted on first launch, allow the app to access your local network in macOS privacy settings or firewall, and make sure your Mac is on the same Wi‑Fi/Ethernet network as the Roku.  
-> If you run via `npm start`, RemoteKu patches Electron’s `Info.plist` on install/start so the Local Network prompt can appear (it may show under **Electron**) in **System Settings → Privacy & Security → Local Network**.
 
 ## Usage
 
@@ -80,9 +106,8 @@ A powerful Electron-based remote control application for Roku devices, built for
 
 ## Requirements
 
-- Node.js 14 or higher
 - A Roku device on the same network
-- macOS 12+ (Apple Silicon supported), Windows, or Linux
+- macOS 12+ (Apple Silicon), Windows 10+, or Linux (with FUSE support for AppImage)
 
 ## Technical Details
 
@@ -109,16 +134,49 @@ This application implements Electron security best practices:
 
 ## Development
 
-To contribute or modify:
+### From Source
 
-1. Make your changes to the source files
-2. Test with `npm start`
-3. Submit a pull request
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/KevinOBytes/remoteku.git
+   cd remoteku
+   ```
 
-## CI builds
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Start the application:
+   ```bash
+   npm start
+   ```
+
+4. Run the tests:
+   ```bash
+   npm test
+   ```
+
+> **macOS note:** Discovery uses SSDP multicast. When prompted on first launch, allow the app to access your local network in macOS privacy settings or firewall, and make sure your Mac is on the same Wi‑Fi/Ethernet network as the Roku.  
+> If you run via `npm start`, RemoteKu patches Electron's `Info.plist` on install/start so the Local Network prompt can appear (it may show under **Electron**) in **System Settings → Privacy & Security → Local Network**.
+
+### Creating a Release
+
+Releases are automated via GitHub Actions. To publish a new version:
+
+```bash
+# Bump the version in package.json, then:
+git add -A && git commit -m "chore: bump version to vX.Y.Z"
+git tag vX.Y.Z
+git push origin main --tags
+```
+
+The release workflow will build `.dmg`, `.exe`, and `.AppImage` artifacts and attach them to a GitHub Release automatically.
+
+## CI Builds
 
 - The GitHub Actions workflow packages the app for Windows, macOS, and Linux and uploads the artifacts from the `builds` output directory.
-- macOS packages built in CI are unsigned (code signing is disabled), so macOS may show Gatekeeper warnings when opening them.
+- macOS packages built in CI are unsigned (code signing is disabled), so macOS will show Gatekeeper warnings when opening them — see [install instructions](#macos-dmg) above for the bypass.
 
 ## License
 
