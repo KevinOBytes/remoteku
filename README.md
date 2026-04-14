@@ -11,7 +11,7 @@ Grab the latest release for your platform:
 | Platform | Download | Architecture |
 |----------|----------|--------------|
 | **macOS** | [RemoteKu-1.1.0-arm64.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-1.1.0-arm64.dmg) | Apple Silicon (M1/M2/M3/M4) |
-| **Windows** | [RemoteKu-Setup-1.1.0.exe](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-Setup-1.1.0.exe) | x64 |
+| **Windows** | [RemoteKu.Setup.1.1.0.exe](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu.Setup.1.1.0.exe) | x64 |
 | **Linux** | [RemoteKu-1.1.0.AppImage](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-1.1.0.AppImage) | x64 |
 
 > [Browse all releases →](https://github.com/KevinOBytes/remoteku/releases)
