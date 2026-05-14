@@ -19,6 +19,8 @@ const statusMessage = document.getElementById('status-message');
 const statusDot = document.getElementById('status-dot');
 const currentDeviceLabel = document.getElementById('current-device');
 const playPauseToggle = document.getElementById('play-pause-toggle');
+const quickAppsContainer = document.getElementById('quick-apps-container');
+const quickAppsCount = document.getElementById('quick-apps-count');
 
 // Configuration
 const STATUS_DISPLAY_DURATION = 3000;
@@ -26,6 +28,15 @@ const KEY_PRESS_FEEDBACK_DURATION = 1000;
 const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
 const STORAGE_KEY = 'remoteku:lastDevice';
 const DISCOVERY_OPTIONS = { fallbackScan: true, throwOnPermission: true };
+const QUICK_LAUNCH_FAVORITES = [
+  { name: 'Netflix', id: '12', matcher: /netflix/i, accent: '#e50914' },
+  { name: 'YouTube', id: '837', matcher: /youtube|you tube/i, accent: '#ff0033' },
+  { name: 'Hulu', id: '2285', matcher: /hulu/i, accent: '#1ce783' },
+  { name: 'Max', id: '61322', matcher: /\bmax\b|hbo/i, accent: '#2f63ff' },
+  { name: 'Disney+', id: '291097', matcher: /disney/i, accent: '#5b8dff' },
+  { name: 'Prime Video', id: '13', matcher: /prime video|amazon/i, accent: '#00a8e1' }
+];
+const QUICK_LAUNCH_LIMIT = 5;
 
 // State
 // Note: isPlaying tracks state locally and may not reflect actual Roku device state
@@ -66,6 +77,151 @@ function triggerVisualFeedback(keyElement) {
   setTimeout(() => {
     keyElement.classList.remove('active-press');
   }, 150);
+}
+
+function playPauseIconMarkup(playing) {
+  if (playing) {
+    return `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+        <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+      </svg>
+    `;
+  }
+
+  return `
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+    </svg>
+  `;
+}
+
+function updatePlayPauseButton() {
+  if (!playPauseToggle) {
+    return;
+  }
+  playPauseToggle.innerHTML = playPauseIconMarkup(isPlaying);
+  playPauseToggle.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+  playPauseToggle.setAttribute('title', isPlaying ? 'Pause' : 'Play');
+}
+
+function setVolumeControlAvailability(supportsAudio) {
+  document.body.classList.toggle('audio-unsupported', supportsAudio === false);
+  document.querySelectorAll('[data-key="VolumeUp"], [data-key="VolumeDown"], [data-key="VolumeMute"]').forEach((button) => {
+    const unsupported = supportsAudio === false;
+    if (!button.dataset.defaultTitle) {
+      button.dataset.defaultTitle = button.title || button.getAttribute('aria-label') || 'Volume control';
+    }
+    button.setAttribute('aria-disabled', unsupported ? 'true' : 'false');
+    button.title = unsupported
+      ? `${button.getAttribute('aria-label') || 'Volume control'} may not be supported by this Roku`
+      : button.dataset.defaultTitle;
+  });
+}
+
+function getFavoriteMeta(app) {
+  return QUICK_LAUNCH_FAVORITES.find((favorite) => {
+    const appName = app?.name || '';
+    return app?.id === favorite.id || favorite.matcher.test(appName);
+  });
+}
+
+function getQuickAccent(app) {
+  return getFavoriteMeta(app)?.accent || '#22d3ee';
+}
+
+function getQuickLaunchApps(apps) {
+  const selected = [];
+  const seenIds = new Set();
+
+  QUICK_LAUNCH_FAVORITES.forEach((favorite) => {
+    const match = apps.find((app) => {
+      const appName = app?.name || '';
+      return app?.id === favorite.id || favorite.matcher.test(appName);
+    });
+    if (match && !seenIds.has(match.id)) {
+      selected.push(match);
+      seenIds.add(match.id);
+    }
+  });
+
+  apps.forEach((app) => {
+    if (selected.length >= QUICK_LAUNCH_LIMIT) {
+      return;
+    }
+    if (app?.id && !seenIds.has(app.id)) {
+      selected.push(app);
+      seenIds.add(app.id);
+    }
+  });
+
+  return selected.slice(0, QUICK_LAUNCH_LIMIT);
+}
+
+function renderQuickApps(apps = []) {
+  if (!quickAppsContainer) {
+    return;
+  }
+
+  quickAppsContainer.replaceChildren();
+  const quickApps = Array.isArray(apps) ? getQuickLaunchApps(apps) : [];
+
+  if (quickAppsCount) {
+    quickAppsCount.textContent = quickApps.length
+      ? `${quickApps.length} app${quickApps.length === 1 ? '' : 's'}`
+      : 'No apps';
+  }
+
+  if (quickApps.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'quick-empty';
+    empty.textContent = 'Connect a Roku to load apps.';
+    quickAppsContainer.appendChild(empty);
+    return;
+  }
+
+  quickApps.forEach((app) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'quick-app-btn';
+    button.dataset.appId = app.id;
+    button.style.setProperty('--quick-accent', getQuickAccent(app));
+    button.title = `Launch ${app.name}`;
+
+    const name = document.createElement('span');
+    name.className = 'quick-app-name';
+    name.textContent = app.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'quick-app-meta';
+    meta.textContent = getFavoriteMeta(app) ? 'Favorite' : 'App';
+
+    button.append(name, meta);
+    quickAppsContainer.appendChild(button);
+  });
+}
+
+async function launchRokuApp(appId, appName, sourceElement) {
+  if (!appId) {
+    return;
+  }
+
+  triggerVisualFeedback(sourceElement);
+  setStatus(`Launching ${appName}...`, { duration: 0, state: 'info' });
+
+  try {
+    const success = await rokuAPI.launchApp(appId);
+    if (success) {
+      setStatus(`Launched ${appName}`, { state: 'success' });
+    } else {
+      setStatus(`Failed to launch ${appName}`, { state: 'error' });
+    }
+  } catch (error) {
+    console.error('Error launching app:', error);
+    setStatus(`Failed to launch ${appName}`, { state: 'error' });
+  }
 }
 
 async function sendRemoteKey(
@@ -194,6 +350,8 @@ function setTestResult(message) {
 }
 
 function updateAudioIndicators(info) {
+  setVolumeControlAvailability(info?.supportsAudioVolumeControl);
+
   if (audioControl) {
     const support = info?.supportsAudioVolumeControl;
     if (support === true) {
@@ -431,7 +589,10 @@ testConnectionBtn?.addEventListener('click', async () => {
 
 // Load apps from current device
 async function loadApps() {
-  appsContainer.innerHTML = '<p>Loading apps...</p>';
+  appsContainer.replaceChildren();
+  const loading = document.createElement('p');
+  loading.textContent = 'Loading apps...';
+  appsContainer.appendChild(loading);
   if (appsCount) {
     appsCount.textContent = 'Loading...';
   }
@@ -440,54 +601,63 @@ async function loadApps() {
     const apps = await rokuAPI.getApps();
 
     if (apps.length === 0) {
-      appsContainer.innerHTML = '<p>No apps found</p>';
+      appsContainer.replaceChildren();
+      const empty = document.createElement('p');
+      empty.textContent = 'No apps found';
+      appsContainer.appendChild(empty);
+      renderQuickApps([]);
       if (appsCount) {
         appsCount.textContent = '0 apps';
       }
       return [];
     }
 
-    appsContainer.innerHTML = '';
+    appsContainer.replaceChildren();
     apps.forEach(app => {
       const tile = document.createElement('div');
       tile.className = 'app-tile';
-      tile.innerHTML = `
-        <div class="app-name">${app.name}</div>
-        <div class="app-meta">v${app.version || '—'}</div>
-      `;
+
+      const name = document.createElement('div');
+      name.className = 'app-name';
+      name.textContent = app.name;
+
+      const meta = document.createElement('div');
+      meta.className = 'app-meta';
+      meta.textContent = `v${app.version || '—'}`;
+
+      tile.append(name, meta);
       tile.title = `${app.name} (v${app.version})`;
       tile.dataset.appId = app.id;
       tile.setAttribute('tabindex', '0');
       tile.setAttribute('role', 'button');
 
-      const launchApp = async () => {
-        setStatus(`Launching ${app.name}...`, { duration: 0, state: 'info' });
-        const success = await rokuAPI.launchApp(app.id);
-        if (success) {
-          setStatus(`Launched ${app.name}`, { state: 'success' });
-        } else {
-          setStatus(`Failed to launch ${app.name}`, { state: 'error' });
-        }
+      const launchTileApp = async () => {
+        await launchRokuApp(app.id, app.name, tile);
       };
 
-      tile.addEventListener('click', launchApp);
+      tile.addEventListener('click', launchTileApp);
 
       tile.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          launchApp();
+          launchTileApp();
         }
       });
 
       appsContainer.appendChild(tile);
     });
+    renderQuickApps(apps);
     if (appsCount) {
       appsCount.textContent = `${apps.length} app${apps.length === 1 ? '' : 's'}`;
     }
     return apps;
   } catch (error) {
     console.error('Error loading apps:', error);
-    appsContainer.innerHTML = '<p>Error loading apps</p>';
+    appsContainer.replaceChildren();
+    const errorMessage = document.createElement('p');
+    errorMessage.textContent = 'Error loading apps';
+    appsContainer.appendChild(errorMessage);
+    renderQuickApps([]);
     if (appsCount) {
       appsCount.textContent = 'Error';
     }
@@ -506,17 +676,24 @@ const tabPanes = document.querySelectorAll('.tab-pane');
 
 tabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    const targetId = btn.getAttribute('data-tab');
-    if (!targetId) return;
-
-    // Toggle active classes
-    tabBtns.forEach(b => b.classList.remove('active'));
-    tabPanes.forEach(p => p.classList.remove('active'));
-
-    btn.classList.add('active');
-    document.getElementById(targetId).classList.add('active');
+    const targetId = btn.dataset.tab || btn.dataset.target;
+    activateTab(targetId);
   });
 });
+
+function activateTab(targetId) {
+  if (!targetId) return;
+  const targetPane = document.getElementById(targetId);
+  if (!targetPane) return;
+
+  tabBtns.forEach((button) => {
+    const buttonTarget = button.dataset.tab || button.dataset.target;
+    button.classList.toggle('active', buttonTarget === targetId);
+  });
+  tabPanes.forEach((pane) => {
+    pane.classList.toggle('active', pane.id === targetId);
+  });
+}
 
 // Handle remote control buttons
 document.querySelectorAll('[data-key]').forEach(button => {
@@ -527,19 +704,16 @@ document.querySelectorAll('[data-key]').forEach(button => {
     // Special handling for play/pause toggle
     if (e.currentTarget.id === 'play-pause-toggle') {
       const wasPlaying = isPlaying;
-      const toggleKey = isPlaying ? 'Pause' : 'Play';
+      const toggleKey = 'Play';
       isPlaying = !isPlaying;
-      // Update button display
-      e.currentTarget.textContent = isPlaying ? '⏸' : '▶';
-      e.currentTarget.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+      updatePlayPauseButton();
       const sent = await sendRemoteKey(toggleKey, {
-        pendingMessage: `Sending ${toggleKey}...`,
+        pendingMessage: 'Sending Play/Pause...',
         pendingDuration: KEY_PRESS_FEEDBACK_DURATION
       });
       if (!sent) {
         isPlaying = wasPlaying;
-        e.currentTarget.textContent = isPlaying ? '⏸' : '▶';
-        e.currentTarget.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+        updatePlayPauseButton();
       }
       return;
     }
@@ -552,35 +726,22 @@ document.querySelectorAll('[data-key]').forEach(button => {
 });
 
 // Handle Quick App Launch buttons
-document.querySelectorAll('.quck-app-btn').forEach(button => {
-  button.addEventListener('click', async (e) => {
-    const appId = e.currentTarget.dataset.quickApp;
-    if (!appId) return;
+quickAppsContainer?.addEventListener('click', async (e) => {
+  const target = e.target instanceof Element ? e.target : null;
+  const button = target?.closest('.quick-app-btn');
+  if (!button) return;
 
-    // Trigger UI feedback
-    triggerVisualFeedback(e.currentTarget);
-
-    const appName = e.currentTarget.textContent.trim();
-
-    setStatus(`Launching ${appName}...`, { duration: 0, state: 'info' });
-    try {
-      const success = await rokuAPI.launchApp(appId);
-      if (success) {
-        setStatus(`Launched ${appName}`, { state: 'success' });
-      } else {
-        setStatus(`Failed to launch ${appName}`, { state: 'error' });
-      }
-    } catch (error) {
-      console.error('Error launching quick app:', error);
-      setStatus(`Failed to launch ${appName}`, { state: 'error' });
-    }
-  });
+  const appId = button.dataset.appId;
+  const appName = button.querySelector('.quick-app-name')?.textContent?.trim() || 'app';
+  await launchRokuApp(appId, appName, button);
 });
 
 // Initialize on load
 window.addEventListener('DOMContentLoaded', () => {
   updateCurrentDevice(null);
   updateAudioIndicators(null);
+  updatePlayPauseButton();
+  renderQuickApps([]);
   setDiscoveryStatus('Idle');
   setLastScan(null);
   loadNetworkInfo();
@@ -593,6 +754,9 @@ const miniModeToggleBtn = document.getElementById('mini-mode-toggle');
 if (miniModeToggleBtn) {
   miniModeToggleBtn.addEventListener('click', () => {
     isMiniMode = !isMiniMode;
+    if (isMiniMode) {
+      activateTab('tab-remote');
+    }
     document.body.classList.toggle('mini-mode', isMiniMode);
     rokuAPI.toggleMiniMode(isMiniMode);
   });
@@ -640,15 +804,21 @@ document.addEventListener('keydown', async (e) => {
     }
   }
 
+  if (e.key === ' ' || e.key === 'MediaPlayPause') {
+    e.preventDefault();
+    playPauseToggle?.click();
+    return;
+  }
+
   const keyMap = {
     'ArrowUp': 'Up',
     'ArrowDown': 'Down',
     'ArrowLeft': 'Left',
     'ArrowRight': 'Right',
     'Enter': 'Select',
-    ' ': 'Play',
     'Backspace': 'Back',
-    'Escape': 'Home'
+    'Escape': 'Back',
+    'Home': 'Home'
   };
 
   const key = keyMap[e.key];

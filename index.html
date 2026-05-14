@@ -18,9 +18,9 @@
           <p class="subtitle">A polished Roku remote for your local network.</p>
         </div>
       </div>
-      <div class="header-actions" style="display: flex; gap: 12px; align-items: center;">
+      <div class="header-actions">
         <button id="mini-mode-toggle" class="btn btn-control"
-          style="padding: 8px; border-radius: 8px; -webkit-app-region: no-drag;" title="Toggle Mini Remote">
+          title="Toggle Mini Remote" aria-label="Toggle Mini Remote">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
             <rect x="8" y="2" width="8" height="20" rx="4" ry="4"></rect>
@@ -33,11 +33,11 @@
         </div>
       </div>
     </header>
-    <nav class="tabs-nav card" style="--delay: 0.02s; margin-bottom: 24px; padding: 0; overflow: hidden;">
-      <div class="tabs-container" style="display: flex;">
-        <button class="tab-btn active" data-target="tab-remote">Remote</button>
-        <button class="tab-btn" data-target="tab-apps">Apps</button>
-        <button class="tab-btn" data-target="tab-connect">Connection</button>
+    <nav class="tabs-nav card" style="--delay: 0.02s;" aria-label="Primary views">
+      <div class="tabs-container">
+        <button class="tab-btn active" data-tab="tab-remote">Remote</button>
+        <button class="tab-btn" data-tab="tab-apps">Apps</button>
+        <button class="tab-btn" data-tab="tab-connect">Connection</button>
       </div>
     </nav>
 
@@ -123,27 +123,26 @@
           </div>
         </div>
 
-        <div class="remote-hardware"
-          style="display: flex; gap: 40px; justify-content: center; align-items: flex-start; flex-wrap: wrap;">
+        <div class="remote-hardware">
           <!-- Left Side: Remote -->
           <div class="remote-control">
             <!-- Top Controls -->
             <div class="button-row top-row">
-              <button class="btn btn-control btn-round btn-power" data-key="Power" title="Power">
+              <button class="btn btn-control btn-round btn-power" data-key="Power" title="Power" aria-label="Power">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                   stroke-linecap="round" stroke-linejoin="round">
                   <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
                   <line x1="12" y1="2" x2="12" y2="12"></line>
                 </svg>
               </button>
-              <button class="btn btn-control btn-round" data-key="Back" title="Back">
+              <button class="btn btn-control btn-round" data-key="Back" title="Back" aria-label="Back">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                   stroke-linecap="round" stroke-linejoin="round">
                   <line x1="19" y1="12" x2="5" y2="12"></line>
                   <polyline points="12 19 5 12 12 5"></polyline>
                 </svg>
               </button>
-              <button class="btn btn-control btn-round btn-home" data-key="Home" title="Home">
+              <button class="btn btn-control btn-round btn-home" data-key="Home" title="Home" aria-label="Home">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                   stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -155,26 +154,26 @@
             <!-- Directional Pad -->
             <div class="nav-pad-container">
               <div class="nav-pad">
-                <button class="btn btn-nav btn-up" data-key="Up" aria-label="Up">
+                <button class="btn btn-nav btn-up" data-key="Up" aria-label="Up" title="Up">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="18 15 12 9 6 15"></polyline>
                   </svg>
                 </button>
-                <button class="btn btn-nav btn-left" data-key="Left" aria-label="Left">
+                <button class="btn btn-nav btn-left" data-key="Left" aria-label="Left" title="Left">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="15 18 9 12 15 6"></polyline>
                   </svg>
                 </button>
-                <button class="btn btn-select" data-key="Select">OK</button>
-                <button class="btn btn-nav btn-right" data-key="Right" aria-label="Right">
+                <button class="btn btn-select" data-key="Select" title="OK">OK</button>
+                <button class="btn btn-nav btn-right" data-key="Right" aria-label="Right" title="Right">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"></polyline>
                   </svg>
                 </button>
-                <button class="btn btn-nav btn-down" data-key="Down" aria-label="Down">
+                <button class="btn btn-nav btn-down" data-key="Down" aria-label="Down" title="Down">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -186,7 +185,7 @@
             <!-- Playback & Options -->
             <div class="playback-controls">
               <div class="button-row">
-                <button class="btn btn-media btn-round" data-key="Rev" title="Rewind">
+                <button class="btn btn-media btn-round" data-key="Rev" title="Rewind" aria-label="Rewind">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="11 19 2 12 11 5 11 19"></polygon>
@@ -194,13 +193,13 @@
                   </svg>
                 </button>
                 <button class="btn btn-media btn-round btn-play" data-key="Play" id="play-pause-toggle"
-                  aria-label="Play">
+                  aria-label="Play" title="Play/Pause">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="5 3 19 12 5 21 5 3"></polygon>
                   </svg>
                 </button>
-                <button class="btn btn-media btn-round" data-key="Fwd" title="Fast Forward">
+                <button class="btn btn-media btn-round" data-key="Fwd" title="Fast Forward" aria-label="Fast Forward">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="13 19 22 12 13 5 13 19"></polygon>
@@ -209,14 +208,15 @@
                 </button>
               </div>
               <div class="button-row">
-                <button class="btn btn-media btn-round" data-key="InstantReplay" title="Instant Replay">
+                <button class="btn btn-media btn-round" data-key="InstantReplay" title="Instant Replay"
+                  aria-label="Instant Replay">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 2v6h6"></path>
                     <path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path>
                   </svg>
                 </button>
-                <button class="btn btn-media btn-round" data-key="Info" title="Options">
+                <button class="btn btn-media btn-round" data-key="Info" title="Options" aria-label="Options">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polygon
@@ -224,7 +224,7 @@
                     </polygon>
                   </svg>
                 </button>
-                <button class="btn btn-media btn-round" data-key="Search" title="Search">
+                <button class="btn btn-media btn-round" data-key="Search" title="Search" aria-label="Search">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="11" cy="11" r="8"></circle>
@@ -237,7 +237,8 @@
             <!-- Volume & Channel -->
             <div class="bottom-controls">
               <div class="vertical-rocker">
-                <button class="btn btn-volume btn-rocker-top" data-key="VolumeUp" title="Volume Up">
+                <button class="btn btn-volume btn-rocker-top" data-key="VolumeUp" title="Volume Up"
+                  aria-label="Volume Up">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
                     stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -245,7 +246,8 @@
                   </svg>
                 </button>
                 <div class="rocker-label">VOL</div>
-                <button class="btn btn-volume btn-rocker-bottom" data-key="VolumeDown" title="Volume Down">
+                <button class="btn btn-volume btn-rocker-bottom" data-key="VolumeDown" title="Volume Down"
+                  aria-label="Volume Down">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
                     stroke-linecap="round" stroke-linejoin="round">
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -254,7 +256,7 @@
               </div>
 
               <div class="center-buttons">
-                <button class="btn btn-volume btn-round" data-key="VolumeMute" title="Mute">
+                <button class="btn btn-volume btn-round" data-key="VolumeMute" title="Mute" aria-label="Mute">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -265,14 +267,16 @@
               </div>
 
               <div class="vertical-rocker">
-                <button class="btn btn-channel btn-rocker-top" data-key="ChannelUp" title="Channel Up">
+                <button class="btn btn-channel btn-rocker-top" data-key="ChannelUp" title="Channel Up"
+                  aria-label="Channel Up">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="18 15 12 9 6 15"></polyline>
                   </svg>
                 </button>
                 <div class="rocker-label">CH</div>
-                <button class="btn btn-channel btn-rocker-bottom" data-key="ChannelDown" title="Channel Down">
+                <button class="btn btn-channel btn-rocker-bottom" data-key="ChannelDown" title="Channel Down"
+                  aria-label="Channel Down">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -284,18 +288,14 @@
           </div>
 
           <!-- Right Side: Quick Apps -->
-          <div class="quick-apps-panel" style="display: flex; flex-direction: column; gap: 16px; padding-top: 20px;">
-            <h3
-              style="color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 8px 0;">
-              Quick Launch</h3>
-            <button class="quck-app-btn" data-quick-app="12"
-              style="background: #E50914; color: white; border: none; padding: 16px 32px; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 160px; box-shadow: 0 4px 12px rgba(229, 9, 20, 0.3); transition: transform 0.1s;">Netflix</button>
-            <button class="quck-app-btn" data-quick-app="837"
-              style="background: #FF0000; color: white; border: none; padding: 16px 32px; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 160px; box-shadow: 0 4px 12px rgba(255, 0, 0, 0.3); transition: transform 0.1s;">YouTube</button>
-            <button class="quck-app-btn" data-quick-app="2285"
-              style="background: #1CE783; color: #000; border: none; padding: 16px 32px; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 160px; box-shadow: 0 4px 12px rgba(28, 231, 131, 0.2); transition: transform 0.1s;">Hulu</button>
-            <button class="quck-app-btn" data-quick-app="61322"
-              style="background: #002BE7; color: white; border: none; padding: 16px 32px; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 160px; box-shadow: 0 4px 12px rgba(0, 43, 231, 0.3); transition: transform 0.1s;">Max</button>
+          <div class="quick-apps-panel" aria-labelledby="quick-launch-title">
+            <div class="quick-apps-header">
+              <h3 id="quick-launch-title">Quick Launch</h3>
+              <span id="quick-apps-count" class="quick-apps-count">No apps</span>
+            </div>
+            <div id="quick-apps-container" class="quick-apps-list" aria-live="polite">
+              <p class="quick-empty">Connect a Roku to load apps.</p>
+            </div>
           </div>
         </div>
       </section>

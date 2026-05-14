@@ -25,8 +25,10 @@ const rokuClient = new RokuClient();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 1030,
+    width: 1040,
+    height: 820,
+    minWidth: 760,
+    minHeight: 700,
     titleBarStyle: 'hiddenInset',
     webPreferences: {
       nodeIntegration: false,
@@ -125,11 +127,13 @@ ipcMain.handle('window:toggle-mini-mode', (event, isMiniMode) => {
 
   if (isMiniMode) {
     // Shrink down strictly to remote dimensions
+    mainWindow.setMinimumSize(320, 700);
     mainWindow.setSize(340, 780, true);
     mainWindow.setAlwaysOnTop(true, 'floating');
   } else {
     // Restore default dimensions
-    mainWindow.setSize(900, 1030, true);
+    mainWindow.setMinimumSize(760, 700);
+    mainWindow.setSize(1040, 820, true);
     mainWindow.setAlwaysOnTop(false);
   }
 });
