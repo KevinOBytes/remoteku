@@ -19,8 +19,7 @@ const statusMessage = document.getElementById('status-message');
 const statusDot = document.getElementById('status-dot');
 const currentDeviceLabel = document.getElementById('current-device');
 const playPauseToggle = document.getElementById('play-pause-toggle');
-const quickAppsContainer = document.getElementById('quick-apps-container');
-const quickAppsCount = document.getElementById('quick-apps-count');
+const remoteAppShortcuts = document.getElementById('remote-app-shortcuts');
 
 // Configuration
 const STATUS_DISPLAY_DURATION = 3000;
@@ -29,15 +28,21 @@ const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
 const STORAGE_KEY = 'remoteku:lastDevice';
 const DISCOVERY_OPTIONS = { fallbackScan: true, throwOnPermission: true };
 const QUICK_LAUNCH_FAVORITES = [
-  { name: 'Netflix', id: '12', matcher: /netflix/i, accent: '#e50914' },
-  { name: 'YouTube', id: '837', matcher: /youtube|you tube/i, accent: '#ff0033' },
-  { name: 'Hulu', id: '2285', matcher: /hulu/i, accent: '#1ce783' },
-  { name: 'Max', id: '61322', matcher: /\bmax\b|hbo/i, accent: '#2f63ff' },
-  { name: 'Disney+', id: '291097', matcher: /disney/i, accent: '#5b8dff' },
-  { name: 'Prime Video', id: '13', matcher: /prime video|amazon/i, accent: '#00a8e1' }
+  { name: 'Netflix', id: '12', matcher: /netflix/i, accent: '#e50914', shade: '#9b0410', text: '#ffffff' },
+  { name: 'YouTube', id: '837', matcher: /youtube|you tube/i, accent: '#ff0033', shade: '#b80024', text: '#ffffff' },
+  { name: 'Hulu', id: '2285', matcher: /hulu/i, accent: '#1ce783', shade: '#09a65b', text: '#04110a' },
+  { name: 'Max', id: '61322', matcher: /\bmax\b|hbo/i, accent: '#2f63ff', shade: '#1429c8', text: '#ffffff' },
+  { name: 'Disney+', id: '291097', matcher: /disney/i, accent: '#5b8dff', shade: '#1f4da6', text: '#ffffff' },
+  {
+    name: 'Prime Video',
+    shortcutLabel: 'Prime',
+    id: '13',
+    matcher: /prime video|amazon/i,
+    accent: '#00a8e1',
+    shade: '#006b9c',
+    text: '#ffffff'
+  }
 ];
-const QUICK_LAUNCH_LIMIT = 5;
-
 // State
 // Note: isPlaying tracks state locally and may not reflect actual Roku device state
 // if controlled by physical remote or another app. Roku ECP API doesn't provide
@@ -121,85 +126,46 @@ function setVolumeControlAvailability(supportsAudio) {
   });
 }
 
-function getFavoriteMeta(app) {
-  return QUICK_LAUNCH_FAVORITES.find((favorite) => {
+function findInstalledFavorite(apps, favorite) {
+  if (!Array.isArray(apps)) {
+    return null;
+  }
+
+  return apps.find((app) => {
     const appName = app?.name || '';
     return app?.id === favorite.id || favorite.matcher.test(appName);
-  });
+  }) || null;
 }
 
-function getQuickAccent(app) {
-  return getFavoriteMeta(app)?.accent || '#22d3ee';
-}
+function renderRemoteAppShortcuts(apps = []) {
+  if (!remoteAppShortcuts) {
+    return;
+  }
 
-function getQuickLaunchApps(apps) {
-  const selected = [];
-  const seenIds = new Set();
+  remoteAppShortcuts.replaceChildren();
 
   QUICK_LAUNCH_FAVORITES.forEach((favorite) => {
-    const match = apps.find((app) => {
-      const appName = app?.name || '';
-      return app?.id === favorite.id || favorite.matcher.test(appName);
-    });
-    if (match && !seenIds.has(match.id)) {
-      selected.push(match);
-      seenIds.add(match.id);
-    }
-  });
+    const installedApp = findInstalledFavorite(apps, favorite);
+    const appId = installedApp?.id || favorite.id;
+    const appName = installedApp?.name || favorite.name;
 
-  apps.forEach((app) => {
-    if (selected.length >= QUICK_LAUNCH_LIMIT) {
-      return;
-    }
-    if (app?.id && !seenIds.has(app.id)) {
-      selected.push(app);
-      seenIds.add(app.id);
-    }
-  });
-
-  return selected.slice(0, QUICK_LAUNCH_LIMIT);
-}
-
-function renderQuickApps(apps = []) {
-  if (!quickAppsContainer) {
-    return;
-  }
-
-  quickAppsContainer.replaceChildren();
-  const quickApps = Array.isArray(apps) ? getQuickLaunchApps(apps) : [];
-
-  if (quickAppsCount) {
-    quickAppsCount.textContent = quickApps.length
-      ? `${quickApps.length} app${quickApps.length === 1 ? '' : 's'}`
-      : 'No apps';
-  }
-
-  if (quickApps.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'quick-empty';
-    empty.textContent = 'Connect a Roku to load apps.';
-    quickAppsContainer.appendChild(empty);
-    return;
-  }
-
-  quickApps.forEach((app) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'quick-app-btn';
-    button.dataset.appId = app.id;
-    button.style.setProperty('--quick-accent', getQuickAccent(app));
-    button.title = `Launch ${app.name}`;
+    button.className = 'btn remote-app-btn';
+    button.dataset.appId = appId;
+    button.dataset.appName = appName;
+    button.style.setProperty('--app-accent', favorite.accent);
+    button.style.setProperty('--app-shade', favorite.shade || favorite.accent);
+    button.style.setProperty('--app-text', favorite.text || '#ffffff');
+    button.title = `Launch ${appName}`;
+    button.setAttribute('aria-label', `Launch ${appName}`);
 
-    const name = document.createElement('span');
-    name.className = 'quick-app-name';
-    name.textContent = app.name;
+    const label = document.createElement('span');
+    label.className = 'remote-app-label';
+    label.textContent = favorite.shortcutLabel || favorite.name;
 
-    const meta = document.createElement('span');
-    meta.className = 'quick-app-meta';
-    meta.textContent = getFavoriteMeta(app) ? 'Favorite' : 'App';
-
-    button.append(name, meta);
-    quickAppsContainer.appendChild(button);
+    button.appendChild(label);
+    remoteAppShortcuts.appendChild(button);
   });
 }
 
@@ -220,7 +186,11 @@ async function launchRokuApp(appId, appName, sourceElement) {
     }
   } catch (error) {
     console.error('Error launching app:', error);
-    setStatus(`Failed to launch ${appName}`, { state: 'error' });
+    const isNoDeviceSelected = error?.message === 'No device selected';
+    setStatus(
+      isNoDeviceSelected ? 'No device selected. Connect to a Roku first.' : `Failed to launch ${appName}`,
+      { state: isNoDeviceSelected ? 'warning' : 'error' }
+    );
   }
 }
 
@@ -605,7 +575,7 @@ async function loadApps() {
       const empty = document.createElement('p');
       empty.textContent = 'No apps found';
       appsContainer.appendChild(empty);
-      renderQuickApps([]);
+      renderRemoteAppShortcuts([]);
       if (appsCount) {
         appsCount.textContent = '0 apps';
       }
@@ -646,7 +616,7 @@ async function loadApps() {
 
       appsContainer.appendChild(tile);
     });
-    renderQuickApps(apps);
+    renderRemoteAppShortcuts(apps);
     if (appsCount) {
       appsCount.textContent = `${apps.length} app${apps.length === 1 ? '' : 's'}`;
     }
@@ -657,7 +627,7 @@ async function loadApps() {
     const errorMessage = document.createElement('p');
     errorMessage.textContent = 'Error loading apps';
     appsContainer.appendChild(errorMessage);
-    renderQuickApps([]);
+    renderRemoteAppShortcuts([]);
     if (appsCount) {
       appsCount.textContent = 'Error';
     }
@@ -725,14 +695,13 @@ document.querySelectorAll('[data-key]').forEach(button => {
   });
 });
 
-// Handle Quick App Launch buttons
-quickAppsContainer?.addEventListener('click', async (e) => {
+remoteAppShortcuts?.addEventListener('click', async (e) => {
   const target = e.target instanceof Element ? e.target : null;
-  const button = target?.closest('.quick-app-btn');
+  const button = target?.closest('.remote-app-btn');
   if (!button) return;
 
   const appId = button.dataset.appId;
-  const appName = button.querySelector('.quick-app-name')?.textContent?.trim() || 'app';
+  const appName = button.dataset.appName || button.textContent?.trim() || 'app';
   await launchRokuApp(appId, appName, button);
 });
 
@@ -741,7 +710,7 @@ window.addEventListener('DOMContentLoaded', () => {
   updateCurrentDevice(null);
   updateAudioIndicators(null);
   updatePlayPauseButton();
-  renderQuickApps([]);
+  renderRemoteAppShortcuts([]);
   setDiscoveryStatus('Idle');
   setLastScan(null);
   loadNetworkInfo();
