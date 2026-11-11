@@ -4,7 +4,7 @@ if (process.platform !== 'darwin') {
   process.exit(0);
 }
 
-const APP_PROCESS_PATTERN = '/builds/mac-arm64/RemoteKu.app/Contents/MacOS/RemoteKu';
+const APP_PROCESS_PATTERN = 'RemoteKu.app/Contents/MacOS/RemoteKu';
 const APP_BUNDLE_ID = 'com.kevinobytes.remoteku';
 const POLL_INTERVAL_MS = 250;
 const TIMEOUT_MS = 5000;

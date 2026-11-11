@@ -74,6 +74,16 @@ const NOW_PLAYING_POLL_MS = 4000;
 const HOLD_INITIAL_DELAY_MS = 360;
 const HOLD_REPEAT_INTERVAL_MS = 145;
 const PERMISSION_ERROR_CODES = new Set(['EACCES', 'EPERM']);
+const LOCAL_NETWORK_BLOCKED_PATTERN = /EACCES|EPERM|EHOSTUNREACH|ENETUNREACH|Local network access blocked/i;
+const LOCAL_NETWORK_HELP =
+  'macOS is blocking RemoteKu from your local network. Open System Settings → Privacy & Security → Local Network and turn RemoteKu on.';
+
+// Electron IPC strips error.code, so also inspect the serialized message.
+function isLocalNetworkBlocked(error) {
+  if (!error) return false;
+  if (PERMISSION_ERROR_CODES.has(error.code)) return true;
+  return LOCAL_NETWORK_BLOCKED_PATTERN.test(String(error.message || error));
+}
 const STORAGE_KEY_LAST_DEVICE = 'remoteku:lastDevice';
 const STORAGE_KEY_PINNED_APPS = 'remoteku:pinnedApps';
 const STORAGE_KEY_SOUND_FX = 'remoteku:soundEffects';
@@ -85,6 +95,7 @@ let isMiniMode = false;
 let hasConnectedDevice = false;
 let soundEffectsEnabled = true;
 let statusTimeoutId = null;
+let lastConnectError = null;
 let nowPlayingIntervalId = null;
 let installedApps = [];
 let pinnedAppIds = [];
@@ -709,12 +720,19 @@ async function connectToHost(hostInput, { remember = true, announce = true, sile
     if (announce) {
       setStatus(`Connected to ${device.friendlyName || 'Roku Device'}`, { state: 'success' });
     }
+    lastConnectError = null;
     await Promise.all([loadApps(), refreshNowPlaying()]);
     return true;
-  } catch (_error) {
+  } catch (error) {
     updateAudioIndicators(null);
+    lastConnectError = error;
     if (!silentFail) {
-      setStatus('Connection failed. Verify Roku IP and network.', { state: 'error' });
+      setStatus(
+        isLocalNetworkBlocked(error)
+          ? LOCAL_NETWORK_HELP
+          : 'Connection failed. Verify Roku IP and network.',
+        { state: 'error', duration: isLocalNetworkBlocked(error) ? 0 : STATUS_DISPLAY_DURATION }
+      );
     }
     return false;
   }
@@ -728,27 +746,49 @@ async function discoverDevices({ preferExistingConnection = false } = {}) {
   if (lastScan) lastScan.textContent = new Date().toLocaleTimeString();
 
   const savedDevice = loadLastDevice();
+  const previousDevice = await rokuAPI.getCurrentDevice();
 
   try {
-    const devices = await rokuAPI.discoverDevices(DISCOVERY_OPTIONS);
-    const current = await rokuAPI.getCurrentDevice();
+    const devices = await rokuAPI.discoverDevices({
+      ...DISCOVERY_OPTIONS,
+      keepCurrentOnEmpty: Boolean(preferExistingConnection || previousDevice?.host)
+    });
+    const current = (await rokuAPI.getCurrentDevice()) || previousDevice;
 
     if (devices.length === 0) {
       if (current?.host) {
         await rokuAPI.addDevice(current);
+        await rokuAPI.setDevice(current);
         const restoredList = await rokuAPI.getDevices();
         renderDeviceOptions(restoredList, current.host);
+        updateCurrentDevice(current);
         if (discoveryStatus) discoveryStatus.textContent = 'Connected (Saved IP)';
         return;
+      }
+
+      if (savedDevice?.host) {
+        const reconnected = await connectToHost(savedDevice.host, {
+          remember: true,
+          announce: !preferExistingConnection,
+          silentFail: true
+        });
+        if (reconnected) {
+          if (discoveryStatus) discoveryStatus.textContent = 'Connected (Saved IP)';
+          return;
+        }
       }
 
       renderDeviceOptions([], null);
       updateCurrentDevice(null);
       updateAudioIndicators(null);
-      if (discoveryStatus) discoveryStatus.textContent = 'None found';
-      setStatus('No Roku found via scan. Enter IP manually or check Local Network access.', {
-        state: 'warning'
-      });
+      const savedHostBlocked = Boolean(savedDevice?.host) && isLocalNetworkBlocked(lastConnectError);
+      if (discoveryStatus) discoveryStatus.textContent = savedHostBlocked ? 'Blocked' : 'None found';
+      setStatus(
+        savedHostBlocked
+          ? LOCAL_NETWORK_HELP
+          : 'No Roku found via scan. Enter IP manually or check Local Network access.',
+        { state: savedHostBlocked ? 'error' : 'warning', duration: savedHostBlocked ? 0 : STATUS_DISPLAY_DURATION }
+      );
       return;
     }
 
@@ -766,12 +806,19 @@ async function discoverDevices({ preferExistingConnection = false } = {}) {
       await Promise.all([loadApps(), refreshNowPlaying()]);
     }
   } catch (error) {
-    const permissionBlocked = PERMISSION_ERROR_CODES.has(error?.code);
-    const statusText = permissionBlocked
-      ? 'Local Network permission blocked — allow RemoteKu in macOS System Settings.'
-      : 'Error discovering devices';
-    if (discoveryStatus) discoveryStatus.textContent = 'Blocked';
-    setStatus(statusText, { state: 'error' });
+    if (previousDevice?.host) {
+      await rokuAPI.addDevice(previousDevice);
+      await rokuAPI.setDevice(previousDevice);
+      const restoredList = await rokuAPI.getDevices();
+      renderDeviceOptions(restoredList, previousDevice.host);
+      updateCurrentDevice(previousDevice);
+      if (discoveryStatus) discoveryStatus.textContent = 'Connected (Saved IP)';
+      return;
+    }
+    const permissionBlocked = isLocalNetworkBlocked(error);
+    const statusText = permissionBlocked ? LOCAL_NETWORK_HELP : 'Error discovering devices';
+    if (discoveryStatus) discoveryStatus.textContent = permissionBlocked ? 'Blocked' : 'Error';
+    setStatus(statusText, { state: 'error', duration: permissionBlocked ? 0 : STATUS_DISPLAY_DURATION });
   }
 }
 
@@ -1280,18 +1327,23 @@ window.addEventListener('DOMContentLoaded', async () => {
   renderRemoteAppShortcuts([]);
   loadNetworkInfo();
 
+  let mainSavedDevice = null;
   try {
     const winState = await rokuAPI.getWindowState?.();
     if (winState?.isMiniMode) {
       setMiniModeState(true, false);
+    }
+    if (winState?.lastDevice?.host) {
+      mainSavedDevice = winState.lastDevice;
     }
   } catch (_error) {
     // Ignore
   }
 
   // Instant reconnect to last known Roku in <150ms before waiting for SSDP multicast timeout
-  const savedDevice = loadLastDevice();
+  const savedDevice = loadLastDevice() || mainSavedDevice;
   if (savedDevice?.host) {
+    saveLastDevice(savedDevice);
     connectToHost(savedDevice.host, {
       remember: true,
       announce: true,

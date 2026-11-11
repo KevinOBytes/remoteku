@@ -1128,3 +1128,103 @@ test('getActiveApp, getMediaPlayer, and getNowPlaying parse live Roku telemetry'
     pluginName: 'Netflix'
   });
 });
+
+test('discoverDevices preserves currentDevice when keepCurrentOnEmpty is true and scan returns empty', async () => {
+  const client = new RokuClient();
+  const existing = {
+    host: 'http://192.168.0.161:8060',
+    ip: '192.168.0.161',
+    friendlyName: '50" TCL Roku TV',
+    modelName: '50S423',
+    serialNumber: 'YN00VM958658'
+  };
+  client.addDevice(existing);
+
+  const devices = await client.discoverDevices({
+    address: '127.0.0.1',
+    port: 65530,
+    discoveryTimeout: 40,
+    keepCurrentOnEmpty: true
+  });
+
+  assert.equal(devices.length, 0);
+  assert.deepEqual(client.getCurrentDevice(), existing);
+  assert.equal(client.getDevices().length, 1);
+  assert.equal(client.getDevices()[0].host, 'http://192.168.0.161:8060');
+});
+
+test('scanLocalSubnetsForRoku prioritizes ARP-cached hosts and returns early when found', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalGetArpTableIps = RokuClient.getArpTableIps;
+  const originalMinPrefix = RokuClient.FALLBACK_SCAN_MIN_PREFIX;
+
+  os.networkInterfaces = () => ({
+    en0: [{
+      address: '192.168.0.188',
+      family: 'IPv4',
+      internal: false,
+      netmask: '255.255.255.0'
+    }]
+  });
+  RokuClient.getArpTableIps = () => new Set(['192.168.0.161']);
+  RokuClient.FALLBACK_SCAN_MIN_PREFIX = 24;
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    RokuClient.getArpTableIps = originalGetArpTableIps;
+    RokuClient.FALLBACK_SCAN_MIN_PREFIX = originalMinPrefix;
+  });
+
+  const client = new RokuClient();
+  const probedHosts = [];
+  client.probeDeviceInfo = async (host) => {
+    probedHosts.push(host);
+    if (host === 'http://192.168.0.161:8060') {
+      return {
+        friendlyName: '50" TCL Roku TV',
+        modelName: '50S423',
+        serialNumber: 'YN00VM958658'
+      };
+    }
+    throw new Error('not found');
+  };
+
+  const result = await client.scanLocalSubnetsForRoku({ timeout: 10, concurrency: 5 });
+  assert.equal(result.devices.length, 1);
+  assert.equal(result.devices[0].host, 'http://192.168.0.161:8060');
+  assert.equal(probedHosts.length, 1);
+});
+
+test('discoverDevices treats EHOSTUNREACH on multicast send as macOS Local Network block', async (t) => {
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalCreateSocket = dgram.createSocket;
+
+  os.networkInterfaces = () => ({
+    en0: [{ address: '192.168.0.188', family: 'IPv4', internal: false }]
+  });
+  dgram.createSocket = () => ({
+    on: () => {},
+    bind: (_port, _address, cb) => cb(),
+    setBroadcast: () => {},
+    setMulticastTTL: () => {},
+    setMulticastLoopback: () => {},
+    setMulticastInterface: () => {},
+    close: () => {},
+    send: (_buf, _offset, _length, _port, _address, cb) => {
+      const err = new Error('send EHOSTUNREACH 239.255.255.250:1900');
+      err.code = 'EHOSTUNREACH';
+      cb(err);
+    }
+  });
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    dgram.createSocket = originalCreateSocket;
+  });
+
+  const client = new RokuClient();
+  await assert.rejects(
+    client.discoverDevices({ discoveryTimeout: 30, throwOnPermission: true }),
+    (error) => error.code === 'EACCES' && /Local network access blocked/.test(error.message)
+  );
+});

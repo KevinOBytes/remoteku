@@ -596,6 +596,9 @@ ipcMain.handle('roku:discover', async (_event, options = {}) => {
   console.log('IPC: roku:discover called', options);
   try {
     const devices = await rokuClient.discoverDevices(options);
+    if (devices.length > 0 && rokuClient.getCurrentDevice()) {
+      windowStateManager.updateLastDevice(rokuClient.getCurrentDevice());
+    }
     console.log(`IPC: roku:discover finishing with ${devices.length} devices`);
     rebuildTrayMenu();
     return devices;
@@ -614,6 +617,9 @@ ipcMain.handle('roku:get-devices', () => {
 
 ipcMain.handle('roku:set-device', (_event, device) => {
   rokuClient.setDevice(device);
+  if (device?.host) {
+    windowStateManager.updateLastDevice(device);
+  }
   rebuildTrayMenu();
 });
 
@@ -631,6 +637,9 @@ ipcMain.handle('roku:probe-device', async (_event, host) => {
 
 ipcMain.handle('roku:add-device', (_event, device) => {
   const added = rokuClient.addDevice(device);
+  if (added?.host) {
+    windowStateManager.updateLastDevice(added);
+  }
   rebuildTrayMenu();
   return added;
 });

@@ -60,7 +60,8 @@ class RokuClient {
     fallbackScan = false,
     fallbackScanTimeout = RokuClient.FALLBACK_SCAN_TIMEOUT,
     fallbackScanConcurrency = RokuClient.FALLBACK_SCAN_CONCURRENCY,
-    throwOnPermission = false
+    throwOnPermission = false,
+    keepCurrentOnEmpty = false
   } = {}) {
     const os = require('os');
     const interfaces = os.networkInterfaces();
@@ -112,11 +113,16 @@ class RokuClient {
           'M-SEARCH * HTTP/1.1\r\n' +
           `HOST: ${address}:${port}\r\n` +
           'MAN: "ssdp:discover"\r\n' +
-          'MX: 3\r\n' +
+          'MX: 1\r\n' +
           'ST: roku:ecp\r\n\r\n'
         );
+        let retryTimer = null;
 
         const cleanup = () => {
+          if (retryTimer) {
+            clearTimeout(retryTimer);
+            retryTimer = null;
+          }
           if (!isSettled) {
             isSettled = true;
             try {
@@ -211,11 +217,10 @@ class RokuClient {
             if (typeof socket.setMulticastLoopback === 'function') {
               socket.setMulticastLoopback(true);
             }
-            if (RokuClient.isMulticastAddress(address)) {
-              // Note: Multicast membership (addMembership) and interface selection
-              // (setMulticastInterface) are intentionally omitted for ACTIVE discovery.
-              // On macOS in an Electron context, binding to a random port and calling
-              // addMembership can result in EHOSTUNREACH errors when sending M-SEARCH.
+            if (RokuClient.isMulticastAddress(address) && interfaceIp !== '0.0.0.0') {
+              if (typeof socket.setMulticastInterface === 'function') {
+                socket.setMulticastInterface(interfaceIp);
+              }
             }
           } catch (e) {
             console.warn(`RokuClient: Socket config failed on ${interfaceIp}:`, e.message);
@@ -224,7 +229,11 @@ class RokuClient {
           console.log(`RokuClient: Sending M-SEARCH on ${interfaceIp}...`);
           socket.send(ssdpMessage, 0, ssdpMessage.length, port, address, (err) => {
             if (err) {
-              if (err?.code === 'EACCES' || err?.code === 'EPERM') {
+              // macOS Local Network Privacy surfaces blocked multicast sends as
+              // EHOSTUNREACH/ENETUNREACH (multicast never needs ARP resolution).
+              const blockedMulticast = RokuClient.isMulticastAddress(address) &&
+                (err?.code === 'EHOSTUNREACH' || err?.code === 'ENETUNREACH');
+              if (err?.code === 'EACCES' || err?.code === 'EPERM' || blockedMulticast) {
                 permissionDenied = true;
               }
               if (softErrorCodes.has(err?.code)) {
@@ -238,6 +247,18 @@ class RokuClient {
               resolve([]);
             } else {
               console.log(`RokuClient: M-SEARCH sent on ${interfaceIp}`);
+              if (discoveryTimeout >= 1000) {
+                const retryDelay = Math.min(600, Math.floor(discoveryTimeout / 3));
+                retryTimer = setTimeout(() => {
+                  if (!isSettled && foundDevices.length === 0) {
+                    try {
+                      socket.send(ssdpMessage, 0, ssdpMessage.length, port, address);
+                    } catch (_e) {
+                      // Ignore retry send error
+                    }
+                  }
+                }, retryDelay);
+              }
             }
           });
         });
@@ -288,8 +309,14 @@ class RokuClient {
         console.log(`RokuClient: Fallback scan found ${fallbackDevices.length} devices.`);
       }
 
-      this.devices = devices;
-      this.currentDevice = devices.length > 0 ? devices[0] : null;
+      if (devices.length === 0 && keepCurrentOnEmpty && this.currentDevice) {
+        if (!this.devices.some((d) => d.host === this.currentDevice.host)) {
+          this.devices = [this.currentDevice, ...this.devices];
+        }
+      } else {
+        this.devices = devices;
+        this.currentDevice = devices.length > 0 ? devices[0] : null;
+      }
 
       if (devices.length === 0 && permissionDenied && throwOnPermission) {
         const error = new Error('Local network access blocked');
@@ -1047,8 +1074,19 @@ class RokuClient {
 
     console.log(`RokuClient: Fallback scan probing ${targets.length} hosts...`);
 
+    const arpIps = RokuClient.getArpTableIps();
+    const priorityTargets = [];
+    const remainingTargets = [];
+    for (const ip of targets) {
+      if (arpIps.has(ip)) {
+        priorityTargets.push(ip);
+      } else {
+        remainingTargets.push(ip);
+      }
+    }
+
     let permissionDenied = false;
-    const found = await RokuClient.mapWithConcurrency(targets, scanConcurrency, async (ip) => {
+    const probeIp = async (ip) => {
       const host = `http://${ip}:8060`;
       try {
         const info = await this.probeDeviceInfo(host, { timeout: scanTimeout });
@@ -1063,9 +1101,45 @@ class RokuClient {
         }
         return null;
       }
-    });
+    };
+
+    if (priorityTargets.length > 0) {
+      console.log(`RokuClient: Probing ${priorityTargets.length} ARP-cached hosts first...`);
+      const priorityFound = await RokuClient.mapWithConcurrency(priorityTargets, scanConcurrency, probeIp);
+      if (priorityFound.length > 0) {
+        return { devices: priorityFound, permissionDenied };
+      }
+    }
+
+    const found = await RokuClient.mapWithConcurrency(remainingTargets, scanConcurrency, probeIp);
 
     return { devices: found, permissionDenied };
+  }
+
+  static getArpTableIps() {
+    try {
+      const { execFileSync } = require('child_process');
+      const arpCmd = process.platform === 'darwin' ? '/usr/sbin/arp' : 'arp';
+      const output = execFileSync(arpCmd, ['-an'], {
+        encoding: 'utf8',
+        timeout: 1500,
+        stdio: ['ignore', 'pipe', 'ignore']
+      });
+      const ips = new Set();
+      const lines = output.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line || line.includes('(incomplete)') || line.includes('permanent')) {
+          continue;
+        }
+        const match = line.match(/\((\d{1,3}(?:\.\d{1,3}){3})\)\s+at\s+([0-9a-fA-F:]+)/);
+        if (match && match[1]) {
+          ips.add(match[1]);
+        }
+      }
+      return ips;
+    } catch (_error) {
+      return new Set();
+    }
   }
 }
 

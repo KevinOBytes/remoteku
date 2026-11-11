@@ -79,5 +79,14 @@ test('WindowStateManager handles corrupt JSON gracefully and persists preference
   assert.equal(reloaded.soundEffects, false);
   assert.equal(reloaded.alwaysOnTop, true);
 
+  manager.updateLastDevice({
+    host: 'http://192.168.0.161:8060',
+    ip: '192.168.0.161',
+    friendlyName: '50" TCL Roku TV'
+  });
+  const withDevice = new WindowStateManager(filePath).load();
+  assert.equal(withDevice.lastDevice.host, 'http://192.168.0.161:8060');
+  assert.equal(withDevice.lastDevice.friendlyName, '50" TCL Roku TV');
+
   fs.rmSync(tempDir, { recursive: true, force: true });
 });

@@ -28,7 +28,8 @@ class WindowStateManager {
       isMiniMode: false,
       alwaysOnTop: false,
       closeToTray: true,
-      soundEffects: true
+      soundEffects: true,
+      lastDevice: null
     };
   }
 
@@ -65,7 +66,10 @@ class WindowStateManager {
             isMiniMode: Boolean(parsed.isMiniMode),
             alwaysOnTop: Boolean(parsed.alwaysOnTop),
             closeToTray: parsed.closeToTray !== undefined ? Boolean(parsed.closeToTray) : true,
-            soundEffects: parsed.soundEffects !== undefined ? Boolean(parsed.soundEffects) : true
+            soundEffects: parsed.soundEffects !== undefined ? Boolean(parsed.soundEffects) : true,
+            lastDevice: parsed.lastDevice && typeof parsed.lastDevice.host === 'string'
+              ? { ...parsed.lastDevice }
+              : null
           };
           return this.getState();
         }
@@ -162,6 +166,17 @@ class WindowStateManager {
     if (typeof prefs.alwaysOnTop === 'boolean') {
       this.state.alwaysOnTop = prefs.alwaysOnTop;
     }
+    if (prefs.lastDevice && typeof prefs.lastDevice.host === 'string') {
+      this.state.lastDevice = { ...prefs.lastDevice };
+    }
+    return this.save();
+  }
+
+  updateLastDevice(device) {
+    if (!device || typeof device.host !== 'string') {
+      return this.getState();
+    }
+    this.state.lastDevice = { ...device };
     return this.save();
   }
 
@@ -172,7 +187,8 @@ class WindowStateManager {
       isMiniMode: this.state.isMiniMode,
       alwaysOnTop: this.state.alwaysOnTop,
       closeToTray: this.state.closeToTray,
-      soundEffects: this.state.soundEffects
+      soundEffects: this.state.soundEffects,
+      lastDevice: this.state.lastDevice ? { ...this.state.lastDevice } : null
     };
   }
 }
