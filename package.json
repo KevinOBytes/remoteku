@@ -21,11 +21,11 @@
   "author": "KevinOBytes",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^39.2.7",
+    "electron": "^42.11.16",
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
-    "axios": "^1.13.2",
+    "axios": "^1.20.0",
     "fast-xml-parser": "^5.3.3"
   },
   "build": {
