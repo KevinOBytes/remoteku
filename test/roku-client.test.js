@@ -914,3 +914,217 @@ test('parseBoolean and parseNumber normalize mixed values', () => {
   assert.equal(RokuClient.parseNumber('NaN'), null);
   assert.equal(RokuClient.parseNumber(''), null);
 });
+
+test('isVirtualInterfaceName identifies virtual/tunnel/bridge interfaces and scanLocalSubnetsForRoku skips them when physical interfaces exist', async (t) => {
+  assert.equal(RokuClient.isVirtualInterfaceName('utun0'), true);
+  assert.equal(RokuClient.isVirtualInterfaceName('bridge100'), true);
+  assert.equal(RokuClient.isVirtualInterfaceName('awdl0'), true);
+  assert.equal(RokuClient.isVirtualInterfaceName('llw0'), true);
+  assert.equal(RokuClient.isVirtualInterfaceName('docker0'), true);
+  assert.equal(RokuClient.isVirtualInterfaceName('veth123'), true);
+  assert.equal(RokuClient.isVirtualInterfaceName('en0'), false);
+  assert.equal(RokuClient.isVirtualInterfaceName('eth0'), false);
+  assert.equal(RokuClient.isVirtualInterfaceName('wlan0'), false);
+
+  const originalNetworkInterfaces = os.networkInterfaces;
+  const originalMinPrefix = RokuClient.FALLBACK_SCAN_MIN_PREFIX;
+
+  os.networkInterfaces = () => ({
+    utun8: [{
+      address: '10.5.0.2',
+      family: 'IPv4',
+      internal: false,
+      netmask: '255.255.255.252'
+    }],
+    bridge100: [{
+      address: '192.168.139.2',
+      family: 'IPv4',
+      internal: false,
+      netmask: '255.255.255.252'
+    }],
+    en0: [{
+      address: '192.168.1.10',
+      family: 'IPv4',
+      internal: false,
+      netmask: '255.255.255.252'
+    }]
+  });
+  RokuClient.FALLBACK_SCAN_MIN_PREFIX = 30;
+
+  t.after(() => {
+    os.networkInterfaces = originalNetworkInterfaces;
+    RokuClient.FALLBACK_SCAN_MIN_PREFIX = originalMinPrefix;
+  });
+
+  const client = new RokuClient();
+  const probedHosts = [];
+  client.probeDeviceInfo = async (host) => {
+    probedHosts.push(host);
+    throw new Error('not found');
+  };
+
+  await client.scanLocalSubnetsForRoku({ timeout: 1, concurrency: 2 });
+  assert.ok(probedHosts.some((h) => h.startsWith('http://192.168.1.')));
+  assert.ok(!probedHosts.some((h) => h.startsWith('http://10.5.0.')));
+  assert.ok(!probedHosts.some((h) => h.startsWith('http://192.168.139.')));
+});
+
+test('probeDeviceInfo parses extended Roku TV and hardware fields', async (t) => {
+  const httpServer = http.createServer((req, res) => {
+    if (req.url === '/query/device-info') {
+      res.writeHead(200, { 'Content-Type': 'application/xml' });
+      res.end([
+        '<device-info>',
+        '<friendly-device-name>Office Roku TV</friendly-device-name>',
+        '<model-name>Roku TV 55R6</model-name>',
+        '<serial-number>tv-999</serial-number>',
+        '<udn>uuid:1234-5678</udn>',
+        '<is-tv>true</is-tv>',
+        '<power-mode>PowerOn</power-mode>',
+        '<supports-find-remote>true</supports-find-remote>',
+        '<software-version>14.0.4</software-version>',
+        '<network-type>wifi</network-type>',
+        '<supports-audio-volume-control>true</supports-audio-volume-control>',
+        '</device-info>'
+      ].join(''));
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  const host = `http://127.0.0.1:${httpServer.address().port}`;
+  t.after(async () => {
+    await new Promise((resolve) => httpServer.close(resolve));
+  });
+
+  const client = new RokuClient();
+  const info = await client.probeDeviceInfo(host);
+  assert.equal(info.friendlyName, 'Office Roku TV');
+  assert.equal(info.isTv, true);
+  assert.equal(info.powerMode, 'PowerOn');
+  assert.equal(info.supportsFindRemote, true);
+  assert.equal(info.softwareVersion, '14.0.4');
+  assert.equal(info.networkType, 'wifi');
+  assert.equal(info.udn, 'uuid:1234-5678');
+});
+
+test('encodeLiteralKey and sendText encode and transmit literal characters safely', async () => {
+  assert.equal(RokuClient.encodeLiteralKey('a'), 'Lit_a');
+  assert.equal(RokuClient.encodeLiteralKey('Z'), 'Lit_Z');
+  assert.equal(RokuClient.encodeLiteralKey('5'), 'Lit_5');
+  assert.equal(RokuClient.encodeLiteralKey(' '), 'Lit_%20');
+  assert.equal(RokuClient.encodeLiteralKey('/'), 'Lit_%2F');
+  assert.equal(RokuClient.encodeLiteralKey('?'), 'Lit_%3F');
+  assert.equal(RokuClient.encodeLiteralKey('&'), 'Lit_%26');
+  assert.equal(RokuClient.encodeLiteralKey('+'), 'Lit_%2B');
+  assert.equal(RokuClient.encodeLiteralKey('%'), 'Lit_%25');
+  assert.equal(RokuClient.encodeLiteralKey('!'), 'Lit_%21');
+  assert.equal(RokuClient.encodeLiteralKey('*'), 'Lit_%2A');
+  assert.equal(RokuClient.encodeLiteralKey('é'), 'Lit_%C3%A9');
+
+  const client = new RokuClient();
+  client.setDevice({ host: 'http://192.168.1.50:8060' });
+
+  const endpoints = [];
+  client.httpClient = {
+    post: async (url) => {
+      endpoints.push(url.replace('http://192.168.1.50:8060', ''));
+    }
+  };
+
+  const ok = await client.sendText('Hi? A+B', { charDelayMs: 0 });
+  assert.equal(ok, true);
+  assert.deepEqual(endpoints, [
+    '/keypress/Lit_H',
+    '/keypress/Lit_i',
+    '/keypress/Lit_%3F',
+    '/keypress/Lit_%20',
+    '/keypress/Lit_A',
+    '/keypress/Lit_%2B',
+    '/keypress/Lit_B'
+  ]);
+});
+
+test('keyDown and keyUp post to /keydown and /keyup endpoints', async () => {
+  const client = new RokuClient();
+  client.setDevice({ host: 'http://192.168.1.50:8060' });
+
+  const endpoints = [];
+  client.httpClient = {
+    post: async (url) => {
+      endpoints.push(url.replace('http://192.168.1.50:8060', ''));
+    }
+  };
+
+  assert.equal(await client.keyDown('VolumeUp'), true);
+  assert.equal(await client.keyUp('VolumeUp'), true);
+  assert.deepEqual(endpoints, ['/keydown/VolumeUp', '/keyup/VolumeUp']);
+});
+
+test('getAppIcon fetches binary image, returns data URI, and caches per device+app', async () => {
+  const client = new RokuClient();
+  client.setDevice({ host: 'http://192.168.1.50:8060' });
+
+  let fetchCount = 0;
+  const fakePng = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+  client.httpClient = {
+    get: async (url, config) => {
+      fetchCount += 1;
+      assert.equal(url, 'http://192.168.1.50:8060/query/icon/12');
+      assert.equal(config.responseType, 'arraybuffer');
+      return {
+        data: fakePng,
+        headers: { 'content-type': 'image/png' }
+      };
+    }
+  };
+
+  const first = await client.getAppIcon('12');
+  const second = await client.getAppIcon('12');
+
+  assert.equal(first, `data:image/png;base64,${fakePng.toString('base64')}`);
+  assert.equal(second, first);
+  assert.equal(fetchCount, 1);
+});
+
+test('getActiveApp, getMediaPlayer, and getNowPlaying parse live Roku telemetry', async () => {
+  const client = new RokuClient();
+  client.setDevice({ host: 'http://192.168.1.50:8060' });
+
+  client.httpClient = {
+    get: async (url) => {
+      if (url.endsWith('/query/active-app')) {
+        return {
+          data: '<active-app><app id="12" type="appl" version="5.1.0">Netflix</app><screensaver id="555" type="ssvr">Aquatic Life</screensaver></active-app>'
+        };
+      }
+      if (url.endsWith('/query/media-player')) {
+        return {
+          data: '<player error="false" state="play"><plugin bandwidth="4500000 bps" id="12" name="Netflix"/><format audio="aac" captions="none" container="mp4" drm="widevine" video="h264"/><position>24500 ms</position><duration>120000 ms</duration><is_live>false</is_live></player>'
+        };
+      }
+      throw new Error('Unexpected URL');
+    }
+  };
+
+  const nowPlaying = await client.getNowPlaying();
+  assert.deepEqual(nowPlaying.activeApp, {
+    id: '12',
+    name: 'Netflix',
+    type: 'appl',
+    version: '5.1.0'
+  });
+  assert.deepEqual(nowPlaying.screensaver, {
+    id: '555',
+    name: 'Aquatic Life'
+  });
+  assert.deepEqual(nowPlaying.media, {
+    state: 'play',
+    isPaused: false,
+    positionMs: 24500,
+    durationMs: 120000,
+    pluginName: 'Netflix'
+  });
+});

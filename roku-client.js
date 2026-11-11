@@ -6,7 +6,8 @@ class RokuClient {
   constructor() {
     this.devices = [];
     this.currentDevice = null;
-    this.httpClient = axios;
+    this.httpClient = axios.create({ proxy: false });
+    this.iconCache = new Map();
   }
 
   // SSDP constants
@@ -19,6 +20,26 @@ class RokuClient {
   static FALLBACK_SCAN_MIN_PREFIX = 24;
   static CONTROL_RETRY_ATTEMPTS = 3;
   static CONTROL_RETRY_DELAY_MS = 150;
+  static TEXT_CHAR_DELAY_MS = 35;
+  static VIRTUAL_INTERFACE_PREFIXES = [
+    'utun',
+    'bridge',
+    'awdl',
+    'llw',
+    'vmenet',
+    'vmnet',
+    'vboxnet',
+    'docker',
+    'veth',
+    'lo',
+    'gif',
+    'stf',
+    'ap',
+    'tap',
+    'tun',
+    'wg',
+    'tailscale'
+  ];
   static RETRYABLE_ERROR_CODES = new Set([
     'ECONNABORTED',
     'ECONNRESET',
@@ -49,7 +70,20 @@ class RokuClient {
     console.log('RokuClient: Starting discovery...');
 
     // Gather all valid IPv4 interfaces (non-internal)
-    for (const name of Object.keys(interfaces)) {
+    const interfaceNames = Object.keys(interfaces);
+    const hasPhysicalInterface = interfaceNames.some((name) => {
+      if (RokuClient.isVirtualInterfaceName(name)) {
+        return false;
+      }
+      return (interfaces[name] || []).some(
+        (net) => RokuClient.isIPv4Family(net.family) && !net.internal
+      );
+    });
+
+    for (const name of interfaceNames) {
+      if (hasPhysicalInterface && RokuClient.isVirtualInterfaceName(name)) {
+        continue;
+      }
       for (const net of interfaces[name]) {
         if (RokuClient.isIPv4Family(net.family) && !net.internal) {
           validInterfaces.push({ name, address: net.address });
@@ -308,6 +342,15 @@ class RokuClient {
       friendlyName: deviceInfo['friendly-device-name'] || deviceInfo['user-device-name'] || 'Roku Device',
       modelName: deviceInfo['model-name'] || 'Unknown',
       serialNumber: deviceInfo['serial-number'] || 'Unknown',
+      udn: deviceInfo.udn ? String(deviceInfo.udn) : null,
+      isTv: RokuClient.parseBoolean(deviceInfo['is-tv']),
+      powerMode: deviceInfo['power-mode'] ? String(deviceInfo['power-mode']) : null,
+      supportsFindRemote: RokuClient.parseBoolean(deviceInfo['supports-find-remote']),
+      softwareVersion:
+        deviceInfo['software-version'] !== undefined && deviceInfo['software-version'] !== null
+          ? String(deviceInfo['software-version'])
+          : null,
+      networkType: deviceInfo['network-type'] ? String(deviceInfo['network-type']) : null,
       supportsAudioVolumeControl: RokuClient.parseBoolean(deviceInfo['supports-audio-volume-control']),
       volume: RokuClient.parseNumber(
         deviceInfo.volume ??
@@ -332,6 +375,12 @@ class RokuClient {
         friendlyName: 'Roku Device',
         modelName: 'Unknown',
         serialNumber: 'Unknown',
+        udn: null,
+        isTv: null,
+        powerMode: null,
+        supportsFindRemote: null,
+        softwareVersion: null,
+        networkType: null,
         supportsAudioVolumeControl: null,
         volume: null,
         muted: null
@@ -420,6 +469,205 @@ class RokuClient {
     }
 
     return await this.postWithRetry(`/keypress/${key}`, `sending key ${key}`);
+  }
+
+  // Send key down command (for hold-to-repeat / continuous press)
+  async keyDown(key) {
+    if (!this.currentDevice) {
+      throw new Error('No device selected');
+    }
+
+    return await this.postWithRetry(`/keydown/${key}`, `sending keyDown ${key}`);
+  }
+
+  // Send key up command (releases held key)
+  async keyUp(key) {
+    if (!this.currentDevice) {
+      throw new Error('No device selected');
+    }
+
+    return await this.postWithRetry(`/keyup/${key}`, `sending keyUp ${key}`);
+  }
+
+  // Encode a single character for Roku ECP /keypress/Lit_<char>
+  static encodeLiteralKey(char) {
+    const str = String(char ?? '');
+    if (!str) {
+      return 'Lit_';
+    }
+    if (/^[A-Za-z0-9]$/.test(str)) {
+      return `Lit_${str}`;
+    }
+    const encoded = Array.from(Buffer.from(str, 'utf8'))
+      .map((byte) => `%${byte.toString(16).padStart(2, '0').toUpperCase()}`)
+      .join('');
+    return `Lit_${encoded}`;
+  }
+
+  // Send a string of text character-by-character using Lit_ keypresses
+  async sendText(text, { charDelayMs = RokuClient.TEXT_CHAR_DELAY_MS } = {}) {
+    if (!this.currentDevice) {
+      throw new Error('No device selected');
+    }
+    if (typeof text !== 'string' || text.length === 0) {
+      return false;
+    }
+
+    const chars = Array.from(text);
+    for (let i = 0; i < chars.length; i += 1) {
+      const litKey = RokuClient.encodeLiteralKey(chars[i]);
+      const ok = await this.sendKey(litKey);
+      if (!ok) {
+        return false;
+      }
+      if (charDelayMs > 0 && i < chars.length - 1) {
+        await RokuClient.delay(charDelayMs);
+      }
+    }
+    return true;
+  }
+
+  // Fetch an app's icon as a cached base64 data URI
+  async getAppIcon(appId) {
+    if (!this.currentDevice || !appId) {
+      return null;
+    }
+
+    const cacheKey = `${this.currentDevice.host}:${appId}`;
+    if (this.iconCache.has(cacheKey)) {
+      return this.iconCache.get(cacheKey);
+    }
+
+    try {
+      const response = await this.httpClient.get(
+        `${this.currentDevice.host}/query/icon/${encodeURIComponent(appId)}`,
+        {
+          timeout: RokuClient.API_TIMEOUT,
+          responseType: 'arraybuffer'
+        }
+      );
+
+      if (!response?.data) {
+        return null;
+      }
+
+      const rawContentType = response.headers?.['content-type'] || 'image/png';
+      const mimeType = String(rawContentType).split(';')[0].trim() || 'image/png';
+      const base64 = Buffer.from(response.data).toString('base64');
+      if (!base64) {
+        return null;
+      }
+
+      const dataUri = `data:${mimeType};base64,${base64}`;
+      this.iconCache.set(cacheKey, dataUri);
+      return dataUri;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Query the currently active app / channel on the Roku
+  async getActiveApp() {
+    if (!this.currentDevice) {
+      throw new Error('No device selected');
+    }
+
+    try {
+      const response = await this.httpClient.get(`${this.currentDevice.host}/query/active-app`, {
+        timeout: RokuClient.API_TIMEOUT
+      });
+
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '@_'
+      });
+      const result = parser.parse(response.data);
+      const root = result?.['active-app'] || {};
+
+      const parseNode = (node) => {
+        if (!node) return null;
+        if (typeof node === 'string') {
+          return { id: null, name: node.trim() || 'Roku' };
+        }
+        if (typeof node === 'object') {
+          const name = typeof node['#text'] === 'string' ? node['#text'].trim() : '';
+          return {
+            id: node['@_id'] ? String(node['@_id']) : null,
+            name: name || 'Roku',
+            type: node['@_type'] ? String(node['@_type']) : undefined,
+            version: node['@_version'] ? String(node['@_version']) : undefined
+          };
+        }
+        return null;
+      };
+
+      const rawApp = parseNode(root.app);
+      const rawScreensaver = parseNode(root.screensaver);
+
+      return {
+        app: rawApp,
+        screensaver: rawScreensaver
+          ? { id: rawScreensaver.id, name: rawScreensaver.name }
+          : null
+      };
+    } catch (error) {
+      return { app: null, screensaver: null };
+    }
+  }
+
+  // Query live media player state (play/pause, position, duration)
+  async getMediaPlayer() {
+    if (!this.currentDevice) {
+      throw new Error('No device selected');
+    }
+
+    try {
+      const response = await this.httpClient.get(`${this.currentDevice.host}/query/media-player`, {
+        timeout: RokuClient.API_TIMEOUT
+      });
+
+      const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: '@_'
+      });
+      const result = parser.parse(response.data);
+      const player = result?.player || {};
+      const state = String(player['@_state'] || 'none').toLowerCase();
+
+      return {
+        state,
+        isPaused: state === 'pause',
+        positionMs: RokuClient.parseDurationMs(player.position),
+        durationMs: RokuClient.parseDurationMs(player.duration),
+        pluginName: player.plugin?.['@_name'] ? String(player.plugin['@_name']) : null
+      };
+    } catch (error) {
+      return {
+        state: 'none',
+        isPaused: false,
+        positionMs: null,
+        durationMs: null,
+        pluginName: null
+      };
+    }
+  }
+
+  // Combined Now Playing snapshot (active app + media player state)
+  async getNowPlaying() {
+    if (!this.currentDevice) {
+      throw new Error('No device selected');
+    }
+
+    const [active, media] = await Promise.all([
+      this.getActiveApp(),
+      this.getMediaPlayer()
+    ]);
+
+    return {
+      activeApp: active?.app || null,
+      screensaver: active?.screensaver || null,
+      media: media || null
+    };
   }
 
   async postWithRetry(endpoint, actionLabel) {
@@ -567,6 +815,36 @@ class RokuClient {
     return Number.isFinite(numberValue) ? numberValue : null;
   }
 
+  static parseDurationMs(value) {
+    if (value === undefined || value === null || value === '') {
+      return null;
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? Math.round(value) : null;
+    }
+    const raw = typeof value === 'object' && value['#text'] !== undefined
+      ? String(value['#text'])
+      : String(value);
+    const match = raw.trim().match(/^(\d+(?:\.\d+)?)\s*(ms|s)?$/i);
+    if (!match) {
+      return null;
+    }
+    const num = Number(match[1]);
+    if (!Number.isFinite(num)) {
+      return null;
+    }
+    const unit = (match[2] || 'ms').toLowerCase();
+    return unit === 's' ? Math.round(num * 1000) : Math.round(num);
+  }
+
+  static isVirtualInterfaceName(name) {
+    if (typeof name !== 'string' || !name.trim()) {
+      return false;
+    }
+    const normalized = name.trim().toLowerCase();
+    return RokuClient.VIRTUAL_INTERFACE_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+  }
+
   static isPrivateIPv4(address) {
     const value = RokuClient.ipToInt(address);
     if (value === null) {
@@ -681,7 +959,20 @@ class RokuClient {
     const seen = new Set();
     const minPrefix = RokuClient.FALLBACK_SCAN_MIN_PREFIX;
 
-    for (const name of Object.keys(interfaces)) {
+    const interfaceNames = Object.keys(interfaces);
+    const hasPhysicalInterface = interfaceNames.some((name) => {
+      if (RokuClient.isVirtualInterfaceName(name)) {
+        return false;
+      }
+      return (interfaces[name] || []).some(
+        (net) => RokuClient.isIPv4Family(net.family) && !net.internal
+      );
+    });
+
+    for (const name of interfaceNames) {
+      if (hasPhysicalInterface && RokuClient.isVirtualInterfaceName(name)) {
+        continue;
+      }
       for (const net of interfaces[name]) {
         if (!RokuClient.isIPv4Family(net.family) || net.internal) {
           continue;

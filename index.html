@@ -4,6 +4,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self';">
   <title>RemoteKu</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -12,44 +14,401 @@
   <div class="container">
     <header class="top-bar" style="--delay: 0s;">
       <div class="brand">
-        <div class="brand-mark">RK</div>
-        <div>
-          <h1>RemoteKu</h1>
-          <p class="subtitle">A polished Roku remote for your local network.</p>
+        <div class="brand-mark" aria-hidden="true">RK</div>
+        <div class="brand-copy">
+          <div class="brand-title-row">
+            <h1>RemoteKu</h1>
+            <span class="version-badge">v2.0</span>
+          </div>
+          <p class="subtitle">Tactile Roku control &amp; live ECP command deck.</p>
         </div>
       </div>
+
       <div class="header-actions">
-        <button id="mini-mode-toggle" class="btn btn-control"
-          title="Toggle Mini Remote" aria-label="Toggle Mini Remote">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        <!-- Quick Device Switcher (visible in Standard & Mini Mode) -->
+        <div class="device-switcher-pill" title="Active Roku Device">
+          <span id="status-dot" class="status-dot idle" aria-hidden="true"></span>
+          <select id="header-device-select" class="header-device-select" aria-label="Active Roku Device">
+            <option value="">Scanning for Roku…</option>
+          </select>
+          <button id="header-rescan-btn" class="icon-pill-btn" type="button" title="Rescan Network (⌘R)"
+            aria-label="Rescan Network">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+              stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div class="status-pill" role="status" aria-live="polite">
+          <span id="status-message">Ready</span>
+        </div>
+
+        <button id="sound-toggle" class="btn btn-control header-icon-btn" type="button"
+          title="Toggle Tactile Click Sound" aria-label="Toggle Tactile Click Sound" aria-pressed="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </button>
+
+        <button id="shortcuts-help-btn" class="btn btn-control header-icon-btn" type="button"
+          title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts">
+          <span class="mono-glyph">?</span>
+        </button>
+
+        <button id="mini-mode-toggle" class="btn btn-control header-icon-btn" type="button"
+          title="Toggle Mini Remote (⌘⇧M)" aria-label="Toggle Mini Remote">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             stroke-linecap="round" stroke-linejoin="round">
             <rect x="8" y="2" width="8" height="20" rx="4" ry="4"></rect>
             <line x1="12" y1="18" x2="12.01" y2="18"></line>
           </svg>
         </button>
-        <div class="status-pill">
-          <span id="status-dot" class="status-dot idle" aria-hidden="true"></span>
-          <span id="status-message">Ready</span>
-        </div>
       </div>
     </header>
-    <nav class="tabs-nav card" style="--delay: 0.02s;" aria-label="Primary views">
-      <div class="tabs-container">
-        <button class="tab-btn active" data-tab="tab-remote">Remote</button>
-        <button class="tab-btn" data-tab="tab-apps">Apps</button>
-        <button class="tab-btn" data-tab="tab-connect">Connection</button>
-      </div>
-    </nav>
 
+    <!-- Subheader: Tabs + Live Now Playing Telemetry -->
+    <div class="deck-bar" style="--delay: 0.02s;">
+      <nav class="tabs-nav" aria-label="Primary views">
+        <div class="tabs-container">
+          <button class="tab-btn active" data-tab="tab-remote" type="button">Command Deck</button>
+          <button class="tab-btn" data-tab="tab-apps" type="button">All Channels</button>
+          <button class="tab-btn" data-tab="tab-connect" type="button">Connection</button>
+        </div>
+      </nav>
+
+      <div id="now-playing-bar" class="now-playing-bar" aria-live="polite">
+        <div class="np-channel">
+          <div id="now-playing-avatar" class="np-avatar">RK</div>
+          <div class="np-meta">
+            <div class="np-title-row">
+              <span id="now-playing-app" class="np-app-name">Not Connected</span>
+              <span id="now-playing-state" class="np-badge idle">IDLE</span>
+            </div>
+            <div id="now-playing-progress-wrap" class="np-progress-wrap hidden">
+              <div class="np-progress-track">
+                <div id="now-playing-progress-fill" class="np-progress-fill" style="width: 0%;"></div>
+              </div>
+              <span id="now-playing-time" class="np-timecode">0:00 / 0:00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: COMMAND DECK (Remote + Companion Dock) -->
+    <div id="tab-remote" class="tab-pane active">
+      <div class="command-deck-grid">
+        <!-- Left Column: Physical Tactile Remote -->
+        <section class="remote-section card" style="--delay: 0.05s;">
+          <div class="section-header remote-card-header">
+            <div>
+              <h2>Remote Control</h2>
+              <p class="section-subtitle">Hold arrows or volume to repeat · Press <kbd class="kbd-inline">?</kbd> for keys</p>
+            </div>
+          </div>
+
+          <div class="remote-hardware">
+            <div class="remote-control">
+              <!-- Top Controls -->
+              <div class="button-row top-row">
+                <button class="btn btn-control btn-round btn-power" data-key="Power" title="Power Toggle"
+                  aria-label="Power" type="button">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                    <line x1="12" y1="2" x2="12" y2="12"></line>
+                  </svg>
+                </button>
+                <button class="btn btn-control btn-round" data-key="Back" title="Back (Backspace / Esc)"
+                  aria-label="Back" type="button">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                  </svg>
+                </button>
+                <button class="btn btn-control btn-round btn-home" data-key="Home" title="Home (H)" aria-label="Home"
+                  type="button">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Directional Pad -->
+              <div class="nav-pad-container">
+                <div class="nav-pad">
+                  <button class="btn btn-nav btn-up" data-key="Up" data-repeatable="true" aria-label="Up"
+                    title="Up (↑ / W)" type="button">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                  </button>
+                  <button class="btn btn-nav btn-left" data-key="Left" data-repeatable="true" aria-label="Left"
+                    title="Left (← / A)" type="button">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                  </button>
+                  <button class="btn btn-select" data-key="Select" title="Select / OK (Enter)" type="button">OK</button>
+                  <button class="btn btn-nav btn-right" data-key="Right" data-repeatable="true" aria-label="Right"
+                    title="Right (→ / D)" type="button">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                  </button>
+                  <button class="btn btn-nav btn-down" data-key="Down" data-repeatable="true" aria-label="Down"
+                    title="Down (↓ / S)" type="button">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Playback & Options -->
+              <div class="playback-controls">
+                <div class="button-row">
+                  <button class="btn btn-media btn-round" data-key="InstantReplay" title="Instant Replay (R)"
+                    aria-label="Instant Replay" type="button">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 2v6h6"></path>
+                      <path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path>
+                    </svg>
+                  </button>
+                  <button class="btn btn-media btn-round" data-key="Info" title="Options / Star (I or *)"
+                    aria-label="Options" type="button">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polygon
+                        points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                      </polygon>
+                    </svg>
+                  </button>
+                  <button class="btn btn-media btn-round" data-key="Search" title="Roku Search" aria-label="Search"
+                    type="button">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="button-row">
+                  <button class="btn btn-media btn-round" data-key="Rev" data-repeatable="true"
+                    title="Rewind ([ or J)" aria-label="Rewind" type="button">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="11 19 2 12 11 5 11 19"></polygon>
+                      <polygon points="22 19 13 12 22 5 22 19"></polygon>
+                    </svg>
+                  </button>
+                  <button class="btn btn-media btn-round btn-play" data-key="Play" id="play-pause-toggle"
+                    aria-label="Play" title="Play/Pause (Space or K)" type="button">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                  </button>
+                  <button class="btn btn-media btn-round" data-key="Fwd" data-repeatable="true"
+                    title="Fast Forward (] or L)" aria-label="Fast Forward" type="button">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="13 19 22 12 13 5 13 19"></polygon>
+                      <polygon points="2 19 11 12 2 5 2 19"></polygon>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 6 Customizable App Shortcuts -->
+              <div id="remote-app-shortcuts" class="remote-app-shortcuts" aria-label="Pinned streaming app shortcuts">
+              </div>
+
+              <!-- Volume & Channel Rockers -->
+              <div class="bottom-controls">
+                <div class="vertical-rocker">
+                  <button class="btn btn-volume btn-rocker-top" data-key="VolumeUp" data-repeatable="true"
+                    title="Volume Up (+)" aria-label="Volume Up" type="button">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                  </button>
+                  <div class="rocker-label">VOL</div>
+                  <button class="btn btn-volume btn-rocker-bottom" data-key="VolumeDown" data-repeatable="true"
+                    title="Volume Down (-)" aria-label="Volume Down" type="button">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="center-buttons">
+                  <button class="btn btn-volume btn-round" data-key="VolumeMute" title="Mute (M)" aria-label="Mute"
+                    type="button">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <line x1="23" y1="9" x2="17" y2="15"></line>
+                      <line x1="17" y1="9" x2="23" y2="15"></line>
+                    </svg>
+                  </button>
+                  <button class="btn btn-control btn-pill-mini" data-key="FindRemote" title="Ping Roku Remote Chime"
+                    aria-label="Find Remote" type="button">
+                    🔔 Find
+                  </button>
+                </div>
+
+                <div class="vertical-rocker">
+                  <button class="btn btn-channel btn-rocker-top" data-key="ChannelUp" data-repeatable="true"
+                    title="Channel Up" aria-label="Channel Up" type="button">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                  </button>
+                  <div class="rocker-label">CH</div>
+                  <button class="btn btn-channel btn-rocker-bottom" data-key="ChannelDown" data-repeatable="true"
+                    title="Channel Down" aria-label="Channel Down" type="button">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right Column: Companion Dock (Keyboard + Pinned/Searchable Apps + TV Inputs) -->
+        <div class="companion-dock">
+          <!-- Live TV Keyboard Entry Card -->
+          <section class="keyboard-card card" style="--delay: 0.08s;">
+            <div class="dock-card-header">
+              <div>
+                <h2>Live TV Keyboard</h2>
+                <p class="section-subtitle">Type searches, emails, or passwords directly onto your Roku screen.</p>
+              </div>
+              <label class="live-type-toggle" title="Send each character to Roku immediately as you type">
+                <input id="roku-live-type-toggle" type="checkbox" checked />
+                <span>Live Stream</span>
+              </label>
+            </div>
+            <div class="keyboard-input-row">
+              <input id="roku-text-input" type="text"
+                placeholder="Type here to send text to Roku… (⌘K or /)" autocomplete="off" spellcheck="false" />
+              <button id="roku-text-send" class="btn btn-primary" type="button">Send</button>
+            </div>
+            <div class="keyboard-quick-actions">
+              <button id="roku-text-backspace" class="btn btn-chip" type="button" title="Send Backspace to Roku">
+                ⌫ Backspace
+              </button>
+              <button id="roku-text-enter" class="btn btn-chip" type="button" title="Send Enter/Select to Roku">
+                ↵ Submit
+              </button>
+              <button id="roku-text-space" class="btn btn-chip" type="button" title="Send Space to Roku">
+                ␣ Space
+              </button>
+              <button id="roku-text-clear" class="btn btn-chip" type="button" title="Clear local input box">
+                ✕ Clear Box
+              </button>
+            </div>
+          </section>
+
+          <!-- Dock Quick Apps & Pinning Card -->
+          <section class="dock-apps-card card" style="--delay: 0.11s;">
+            <div class="dock-card-header">
+              <div>
+                <h2>Channels &amp; Pinned Shortcuts</h2>
+                <p class="section-subtitle">Click a channel to launch · Click <span class="star-accent">★</span> to pin up to 6 onto the remote.</p>
+              </div>
+              <div class="dock-filter-pills" role="group" aria-label="Filter channels">
+                <button class="filter-pill active" data-filter="all" type="button">All</button>
+                <button class="filter-pill" data-filter="pinned" type="button">★ Pinned</button>
+              </div>
+            </div>
+            <div class="dock-search-row">
+              <input id="dock-apps-search" type="search" placeholder="Search installed channels… (⌘F)"
+                autocomplete="off" />
+              <span id="dock-apps-count" class="mono-badge">0 apps</span>
+            </div>
+            <div id="dock-apps-container" class="apps-grid dock-apps-grid">
+              <p class="empty-hint">Connect to a Roku to browse installed channels.</p>
+            </div>
+          </section>
+
+          <!-- Roku TV Inputs & Hardware Controls -->
+          <section class="tv-inputs-card card" style="--delay: 0.14s;">
+            <div class="dock-card-header">
+              <div>
+                <h2>TV Inputs &amp; Power</h2>
+                <p class="section-subtitle">Direct input switching for Roku TVs &amp; Streambars.</p>
+              </div>
+            </div>
+            <div class="tv-inputs-grid">
+              <button class="btn btn-chip" data-key="InputHDMI1" type="button">HDMI 1</button>
+              <button class="btn btn-chip" data-key="InputHDMI2" type="button">HDMI 2</button>
+              <button class="btn btn-chip" data-key="InputHDMI3" type="button">HDMI 3</button>
+              <button class="btn btn-chip" data-key="InputHDMI4" type="button">HDMI 4</button>
+              <button class="btn btn-chip" data-key="InputTuner" type="button">📺 Live TV</button>
+              <button class="btn btn-chip" data-key="InputAV1" type="button">AV Input</button>
+              <button class="btn btn-chip" data-key="PowerOn" type="button">☀ Power On</button>
+              <button class="btn btn-chip" data-key="PowerOff" type="button">🌙 Power Off</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: FULL APPS GALLERY -->
+    <div id="tab-apps" class="tab-pane">
+      <section class="apps-section card" style="--delay: 0.06s;">
+        <div class="apps-header">
+          <div>
+            <h2>Installed Channels</h2>
+            <p class="section-subtitle">Click any channel to launch instantly · Pin up to 6 favorites (<span class="star-accent">★</span>) to your remote.</p>
+          </div>
+          <div class="apps-header-controls">
+            <input id="apps-search-input" type="search" placeholder="Search channels…" autocomplete="off" />
+            <button id="refresh-apps" class="btn btn-primary" type="button">Refresh Apps</button>
+          </div>
+        </div>
+        <div class="apps-meta">
+          <span id="apps-count" class="mono-badge">0 apps</span>
+        </div>
+        <div id="apps-container" class="apps-grid">
+          <p class="empty-hint">Loading apps...</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 3: CONNECTION & DIAGNOSTICS -->
     <div id="tab-connect" class="tab-pane">
       <section class="device-panel card" style="--delay: 0.05s;">
         <div class="device-header">
           <div>
             <h2>Device Connection</h2>
-            <p class="section-subtitle">Auto-discover or connect directly.</p>
+            <p class="section-subtitle">Auto-discover via SSDP + smart LAN scan or connect directly by IP.</p>
           </div>
           <div class="current-device">
-            <span class="label">Current</span>
+            <span class="label">Current Roku</span>
             <span id="current-device">Not connected</span>
           </div>
         </div>
@@ -60,32 +419,37 @@
               <option value="">Searching...</option>
             </select>
           </div>
-          <button id="refresh-devices" class="btn btn-primary">Refresh</button>
+          <button id="refresh-devices" class="btn btn-primary" type="button">Rescan Network</button>
         </div>
         <div class="device-row">
           <div class="device-field">
             <label for="manual-host">Manual IP / Host</label>
             <input id="manual-host" type="text" placeholder="192.168.1.20 or http://192.168.1.20:8060" />
           </div>
-          <button id="manual-connect" class="btn btn-secondary">Connect</button>
+          <button id="manual-connect" class="btn btn-secondary" type="button">Connect</button>
         </div>
-        <p class="device-hint">
-          If discovery fails on macOS, allow Local Network access for RemoteKu (or Electron when running via npm).
-        </p>
+        <div class="device-footer-row">
+          <p class="device-hint">
+            If discovery is blocked on macOS, grant Local Network access for RemoteKu in System Settings.
+          </p>
+          <button id="open-network-settings" class="btn btn-chip" type="button">
+            Open Local Network Settings
+          </button>
+        </div>
       </section>
 
       <section class="diagnostics card" style="--delay: 0.08s;">
         <div class="diagnostics-header">
           <div>
             <h2>Connection Diagnostics</h2>
-            <p class="section-subtitle">Local network visibility, SSDP status, and reachability tests.</p>
+            <p class="section-subtitle">Physical LAN visibility, SSDP status, and Roku hardware telemetry.</p>
           </div>
-          <button id="test-connection" class="btn btn-secondary">Test Current Device</button>
+          <button id="test-connection" class="btn btn-secondary" type="button">Test Current Device</button>
         </div>
         <div class="diag-grid">
           <div class="diag-item">
-            <div class="diag-label">Local IPs</div>
-            <div id="local-ips" class="diag-value">—</div>
+            <div class="diag-label">Physical LAN IPs</div>
+            <div id="local-ips" class="diag-value mono-text">—</div>
           </div>
           <div class="diag-item">
             <div class="diag-label">Discovery</div>
@@ -93,7 +457,7 @@
           </div>
           <div class="diag-item">
             <div class="diag-label">Last Scan</div>
-            <div id="last-scan" class="diag-value">—</div>
+            <div id="last-scan" class="diag-value mono-text">—</div>
           </div>
           <div class="diag-item">
             <div class="diag-label">Audio Control</div>
@@ -101,219 +465,57 @@
           </div>
           <div class="diag-item">
             <div class="diag-label">Volume / Mute</div>
-            <div id="volume-mute" class="diag-value">—</div>
+            <div id="volume-mute" class="diag-value mono-text">—</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Model &amp; OS</div>
+            <div id="device-model-os" class="diag-value mono-text">—</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Power &amp; Link</div>
+            <div id="device-power-mode" class="diag-value mono-text">—</div>
           </div>
           <div class="diag-item">
             <div class="diag-label">Test Result</div>
-            <div id="test-result" class="diag-value">—</div>
+            <div id="test-result" class="diag-value mono-text">—</div>
           </div>
-        </div>
-        <p class="device-hint">
-          Tip: If Local Network is blocked, add the Roku IP manually or enable access under System Settings.
-        </p>
-      </section>
-    </div>
-
-    <div id="tab-remote" class="tab-pane active">
-      <section class="remote-section card" style="--delay: 0.1s;">
-        <div class="section-header">
-          <div>
-            <h2>Remote Control</h2>
-            <p class="section-subtitle">Fast, tactile controls with live feedback.</p>
-          </div>
-        </div>
-
-        <div class="remote-hardware">
-          <!-- Left Side: Remote -->
-          <div class="remote-control">
-            <!-- Top Controls -->
-            <div class="button-row top-row">
-              <button class="btn btn-control btn-round btn-power" data-key="Power" title="Power" aria-label="Power">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-                  <line x1="12" y1="2" x2="12" y2="12"></line>
-                </svg>
-              </button>
-              <button class="btn btn-control btn-round" data-key="Back" title="Back" aria-label="Back">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="19" y1="12" x2="5" y2="12"></line>
-                  <polyline points="12 19 5 12 12 5"></polyline>
-                </svg>
-              </button>
-              <button class="btn btn-control btn-round btn-home" data-key="Home" title="Home" aria-label="Home">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-              </button>
-            </div>
-
-            <!-- Directional Pad -->
-            <div class="nav-pad-container">
-              <div class="nav-pad">
-                <button class="btn btn-nav btn-up" data-key="Up" aria-label="Up" title="Up">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="18 15 12 9 6 15"></polyline>
-                  </svg>
-                </button>
-                <button class="btn btn-nav btn-left" data-key="Left" aria-label="Left" title="Left">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="15 18 9 12 15 6"></polyline>
-                  </svg>
-                </button>
-                <button class="btn btn-select" data-key="Select" title="OK">OK</button>
-                <button class="btn btn-nav btn-right" data-key="Right" aria-label="Right" title="Right">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                </button>
-                <button class="btn btn-nav btn-down" data-key="Down" aria-label="Down" title="Down">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <!-- Playback & Options -->
-            <div class="playback-controls">
-              <div class="button-row">
-                <button class="btn btn-media btn-round" data-key="Rev" title="Rewind" aria-label="Rewind">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="11 19 2 12 11 5 11 19"></polygon>
-                    <polygon points="22 19 13 12 22 5 22 19"></polygon>
-                  </svg>
-                </button>
-                <button class="btn btn-media btn-round btn-play" data-key="Play" id="play-pause-toggle"
-                  aria-label="Play" title="Play/Pause">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                  </svg>
-                </button>
-                <button class="btn btn-media btn-round" data-key="Fwd" title="Fast Forward" aria-label="Fast Forward">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="13 19 22 12 13 5 13 19"></polygon>
-                    <polygon points="2 19 11 12 2 5 2 19"></polygon>
-                  </svg>
-                </button>
-              </div>
-              <div class="button-row">
-                <button class="btn btn-media btn-round" data-key="InstantReplay" title="Instant Replay"
-                  aria-label="Instant Replay">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 2v6h6"></path>
-                    <path d="M3 13a9 9 0 1 0 3-7.7L3 8"></path>
-                  </svg>
-                </button>
-                <button class="btn btn-media btn-round" data-key="Info" title="Options" aria-label="Options">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polygon
-                      points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
-                    </polygon>
-                  </svg>
-                </button>
-                <button class="btn btn-media btn-round" data-key="Search" title="Search" aria-label="Search">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <!-- App Shortcuts -->
-            <div id="remote-app-shortcuts" class="remote-app-shortcuts" aria-label="Streaming app shortcuts"></div>
-
-            <!-- Volume & Channel -->
-            <div class="bottom-controls">
-              <div class="vertical-rocker">
-                <button class="btn btn-volume btn-rocker-top" data-key="VolumeUp" title="Volume Up"
-                  aria-label="Volume Up">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                </button>
-                <div class="rocker-label">VOL</div>
-                <button class="btn btn-volume btn-rocker-bottom" data-key="VolumeDown" title="Volume Down"
-                  aria-label="Volume Down">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
-                </button>
-              </div>
-
-              <div class="center-buttons">
-                <button class="btn btn-volume btn-round" data-key="VolumeMute" title="Mute" aria-label="Mute">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-                    <line x1="23" y1="9" x2="17" y2="15"></line>
-                    <line x1="17" y1="9" x2="23" y2="15"></line>
-                  </svg>
-                </button>
-              </div>
-
-              <div class="vertical-rocker">
-                <button class="btn btn-channel btn-rocker-top" data-key="ChannelUp" title="Channel Up"
-                  aria-label="Channel Up">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="18 15 12 9 6 15"></polyline>
-                  </svg>
-                </button>
-                <div class="rocker-label">CH</div>
-                <button class="btn btn-channel btn-rocker-bottom" data-key="ChannelDown" title="Channel Down"
-                  aria-label="Channel Down">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-          </div>
-
         </div>
       </section>
     </div>
-
-    <div id="tab-apps" class="tab-pane">
-      <section class="apps-section card" style="--delay: 0.15s;">
-        <div class="apps-header">
-          <div>
-            <h2>Installed Apps</h2>
-            <p class="section-subtitle">Launch favorites instantly.</p>
-          </div>
-          <button id="refresh-apps" class="btn btn-primary">Refresh Apps</button>
-        </div>
-        <div class="apps-meta">
-          <span id="apps-count">0 apps</span>
-        </div>
-        <div id="apps-container" class="apps-grid">
-          <p>Loading apps...</p>
-        </div>
-      </section>
-    </div>
-
   </div>
 
+  <!-- Keyboard Shortcuts Cheat-Sheet Modal -->
+  <div id="shortcuts-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true"
+    aria-labelledby="shortcuts-modal-title">
+    <div class="modal-card card">
+      <div class="modal-header">
+        <div>
+          <h2 id="shortcuts-modal-title">Keyboard Shortcuts</h2>
+          <p class="section-subtitle">Control your Roku at full speed without touching the mouse.</p>
+        </div>
+        <button id="close-shortcuts-modal" class="btn btn-control header-icon-btn" type="button"
+          aria-label="Close Shortcuts">✕</button>
+      </div>
+      <div class="shortcuts-grid">
+        <div class="shortcut-row"><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Navigate D-Pad</span></div>
+        <div class="shortcut-row"><kbd>Enter</kbd><span>Select / OK</span></div>
+        <div class="shortcut-row"><kbd>Space</kbd> or <kbd>K</kbd><span>Play / Pause</span></div>
+        <div class="shortcut-row"><kbd>Backspace</kbd> or <kbd>Esc</kbd><span>Back</span></div>
+        <div class="shortcut-row"><kbd>H</kbd> or <kbd>Home</kbd><span>Roku Home Screen</span></div>
+        <div class="shortcut-row"><kbd>M</kbd><span>Mute / Unmute</span></div>
+        <div class="shortcut-row"><kbd>+</kbd> / <kbd>-</kbd><span>Volume Up / Down</span></div>
+        <div class="shortcut-row"><kbd>[</kbd> / <kbd>]</kbd> or <kbd>J</kbd> / <kbd>L</kbd><span>Rewind / Fast Forward</span></div>
+        <div class="shortcut-row"><kbd>R</kbd><span>Instant Replay</span></div>
+        <div class="shortcut-row"><kbd>I</kbd> or <kbd>*</kbd><span>Options / Info (*)</span></div>
+        <div class="shortcut-row"><kbd>⌘K</kbd> or <kbd>/</kbd><span>Focus Live TV Keyboard</span></div>
+        <div class="shortcut-row"><kbd>⌘F</kbd><span>Search Installed Channels</span></div>
+        <div class="shortcut-row"><kbd>⌘⇧M</kbd><span>Toggle Floating Mini Remote</span></div>
+        <div class="shortcut-row"><kbd>⌘⇧R</kbd><span>Global Summon / Hide RemoteKu</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer-logic.js"></script>
   <script src="renderer.js"></script>
 </body>
 

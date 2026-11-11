@@ -1,6 +1,6 @@
 {
   "name": "remoteku",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "A Roku Remote Control Electron Application",
   "main": "main.js",
   "scripts": {
@@ -11,7 +11,7 @@
     "prebuild:mac": "node scripts/quit_running_app_before_build.js",
     "build:mac": "electron-builder --mac --arm64",
     "dist": "electron-builder --publish never",
-    "test": "node --test test/roku-client.test.js"
+    "test": "node --test test/*.test.js"
   },
   "keywords": [
     "roku",
@@ -21,12 +21,15 @@
   "author": "KevinOBytes",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^39.2.7",
-    "electron-builder": "^26.15.3"
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0"
   },
   "dependencies": {
-    "axios": "^1.13.2",
-    "fast-xml-parser": "^5.3.3"
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/plus-jakarta-sans": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
+    "axios": "^1.21.0",
+    "fast-xml-parser": "^5.12.0"
   },
   "build": {
     "appId": "com.kevinobytes.remoteku",
@@ -37,6 +40,8 @@
     "files": [
       "**/*",
       "!builds/**",
+      "!docs/**",
+      "!.superpowers/**",
       "!test/**",
       "!tests/**",
       "!.github/**",
@@ -45,6 +50,7 @@
       "!.gitignore"
     ],
     "mac": {
+      "category": "public.app-category.utilities",
       "target": [
         {
           "target": "dmg",
@@ -56,7 +62,11 @@
       "identity": null,
       "entitlements": "entitlements.mac.plist",
       "extendInfo": {
-        "NSLocalNetworkUsageDescription": "RemoteKu needs access to your local network to discover and control Roku devices."
+        "NSLocalNetworkUsageDescription": "RemoteKu needs access to your local network to discover and control Roku devices.",
+        "NSBonjourServices": [
+          "_roku-ecp._tcp",
+          "_ssdp._udp"
+        ]
       }
     },
     "win": {

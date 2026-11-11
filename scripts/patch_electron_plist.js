@@ -42,10 +42,18 @@ if (current.status === 0) {
       console.warn('patch_electron_plist: Unable to update NSLocalNetworkUsageDescription.');
     }
   }
-  process.exit(0);
+} else {
+  const addResult = runPlistBuddy(`Add :NSLocalNetworkUsageDescription string "${description}"`);
+  if (addResult.status !== 0) {
+    console.warn('patch_electron_plist: Unable to add NSLocalNetworkUsageDescription.');
+  }
 }
 
-const addResult = runPlistBuddy(`Add :NSLocalNetworkUsageDescription string "${description}"`);
-if (addResult.status !== 0) {
-  console.warn('patch_electron_plist: Unable to add NSLocalNetworkUsageDescription.');
+const bonjourServices = ['_roku-ecp._tcp', '_ssdp._udp'];
+const currentBonjour = runPlistBuddy('Print :NSBonjourServices');
+if (currentBonjour.status !== 0) {
+  runPlistBuddy('Add :NSBonjourServices array');
+  bonjourServices.forEach((service, index) => {
+    runPlistBuddy(`Add :NSBonjourServices:${index} string "${service}"`);
+  });
 }

@@ -12,7 +12,39 @@ contextBridge.exposeInMainWorld('rokuAPI', {
   addDevice: (device) => ipcRenderer.invoke('roku:add-device', device),
   getNetworkInfo: () => ipcRenderer.invoke('roku:get-network-info'),
   getApps: () => ipcRenderer.invoke('roku:get-apps'),
+  getAppIcon: (appId) => ipcRenderer.invoke('roku:get-app-icon', appId),
   launchApp: (appId) => ipcRenderer.invoke('roku:launch-app', appId),
   sendKey: (key) => ipcRenderer.invoke('roku:send-key', key),
-  toggleMiniMode: (isMiniMode) => ipcRenderer.invoke('window:toggle-mini-mode', isMiniMode)
+  keyDown: (key) => ipcRenderer.invoke('roku:key-down', key),
+  keyUp: (key) => ipcRenderer.invoke('roku:key-up', key),
+  sendText: (text, options) => ipcRenderer.invoke('roku:send-text', text, options),
+  getNowPlaying: () => ipcRenderer.invoke('roku:get-now-playing'),
+  toggleMiniMode: (isMiniMode) => ipcRenderer.invoke('window:toggle-mini-mode', isMiniMode),
+  getWindowState: () => ipcRenderer.invoke('window:get-state'),
+  updatePreferences: (prefs) => ipcRenderer.invoke('window:update-preferences', prefs),
+  openNetworkSettings: () => ipcRenderer.invoke('system:open-network-settings'),
+  onSystemResume: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('system:resume', listener);
+    return () => ipcRenderer.removeListener('system:resume', listener);
+  },
+  onMenuAction: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('menu:action', listener);
+    return () => ipcRenderer.removeListener('menu:action', listener);
+  },
+  onShortcutAction: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('menu:action', listener);
+    return () => ipcRenderer.removeListener('menu:action', listener);
+  },
+  onDeviceChanged: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('roku:device-changed', listener);
+    return () => ipcRenderer.removeListener('roku:device-changed', listener);
+  }
 });
