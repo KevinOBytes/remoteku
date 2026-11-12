@@ -10,7 +10,7 @@
     { name: 'YouTube', id: '837', matcher: /youtube|you tube/i, accent: '#ff0033', shade: '#b80024', text: '#ffffff' },
     { name: 'Hulu', id: '2285', matcher: /hulu/i, accent: '#1ce783', shade: '#09a65b', text: '#04110a' },
     { name: 'Max', id: '61322', matcher: /\bmax\b|hbo/i, accent: '#2f63ff', shade: '#1429c8', text: '#ffffff' },
-    { name: 'Disney+', id: '291097', matcher: /disney/i, accent: '#5b8dff', shade: '#1f4da6', text: '#ffffff' },
+    { name: 'Disney+', shortcutLabel: 'Disney+', id: '291097', matcher: /disney/i, accent: '#5b8dff', shade: '#1f4da6', text: '#ffffff' },
     {
       name: 'Prime Video',
       shortcutLabel: 'Prime',

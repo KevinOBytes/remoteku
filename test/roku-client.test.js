@@ -75,6 +75,7 @@ test('discoverDevices finds Roku device and supports basic control', async (t) =
   const client = new RokuClient();
   const devices = await client.discoverDevices({
     address: '127.0.0.1',
+    bindAddress: '127.0.0.1',
     port: udpServer.address().port,
     discoveryTimeout: 200
   });
@@ -217,6 +218,7 @@ test('discoverDevices adds device even when device-info fails', async (t) => {
   const client = new RokuClient();
   const devices = await client.discoverDevices({
     address: '127.0.0.1',
+    bindAddress: '127.0.0.1',
     port: udpServer.address().port,
     discoveryTimeout: 200
   });
@@ -273,6 +275,7 @@ test('discoverDevices handles SSDP responses using Unix newlines', async (t) => 
   const client = new RokuClient();
   const devices = await client.discoverDevices({
     address: '127.0.0.1',
+    bindAddress: '127.0.0.1',
     port: udpServer.address().port,
     discoveryTimeout: 200
   });

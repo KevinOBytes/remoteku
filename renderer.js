@@ -340,7 +340,18 @@ function buildAppTileElement(app) {
 
   const meta = document.createElement('div');
   meta.className = 'app-meta';
-  meta.textContent = isPinned ? `★ Shortcut · v${app.version || '—'}` : `v${app.version || '—'}`;
+
+  if (isPinned) {
+    const badge = document.createElement('span');
+    badge.className = 'app-meta-badge';
+    badge.textContent = '★ Pinned';
+    meta.appendChild(badge);
+  }
+
+  const ver = document.createElement('span');
+  ver.className = 'app-meta-ver';
+  ver.textContent = app.version ? `v${app.version}` : 'Channel';
+  meta.appendChild(ver);
 
   info.append(name, meta);
 

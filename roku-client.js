@@ -56,6 +56,7 @@ class RokuClient {
   async discoverDevices({
     address = RokuClient.SSDP_ADDRESS,
     port = RokuClient.SSDP_PORT,
+    bindAddress = null,
     discoveryTimeout = RokuClient.DISCOVERY_TIMEOUT,
     fallbackScan = false,
     fallbackScanTimeout = RokuClient.FALLBACK_SCAN_TIMEOUT,
@@ -70,25 +71,29 @@ class RokuClient {
 
     console.log('RokuClient: Starting discovery...');
 
-    // Gather all valid IPv4 interfaces (non-internal)
-    const interfaceNames = Object.keys(interfaces);
-    const hasPhysicalInterface = interfaceNames.some((name) => {
-      if (RokuClient.isVirtualInterfaceName(name)) {
-        return false;
-      }
-      return (interfaces[name] || []).some(
-        (net) => RokuClient.isIPv4Family(net.family) && !net.internal
-      );
-    });
+    if (bindAddress) {
+      validInterfaces.push({ name: 'custom', address: bindAddress });
+    } else {
+      // Gather all valid IPv4 interfaces (non-internal)
+      const interfaceNames = Object.keys(interfaces);
+      const hasPhysicalInterface = interfaceNames.some((name) => {
+        if (RokuClient.isVirtualInterfaceName(name)) {
+          return false;
+        }
+        return (interfaces[name] || []).some(
+          (net) => RokuClient.isIPv4Family(net.family) && !net.internal
+        );
+      });
 
-    for (const name of interfaceNames) {
-      if (hasPhysicalInterface && RokuClient.isVirtualInterfaceName(name)) {
-        continue;
-      }
-      for (const net of interfaces[name]) {
-        if (RokuClient.isIPv4Family(net.family) && !net.internal) {
-          validInterfaces.push({ name, address: net.address });
-          console.log(`RokuClient: Found interface ${name} (${net.address})`);
+      for (const name of interfaceNames) {
+        if (hasPhysicalInterface && RokuClient.isVirtualInterfaceName(name)) {
+          continue;
+        }
+        for (const net of interfaces[name]) {
+          if (RokuClient.isIPv4Family(net.family) && !net.internal) {
+            validInterfaces.push({ name, address: net.address });
+            console.log(`RokuClient: Found interface ${name} (${net.address})`);
+          }
         }
       }
     }
