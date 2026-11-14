@@ -1,6 +1,10 @@
 # RemoteKu v2.0 — Roku Remote & Live ECP Command Deck
 
-A native, tactile Electron-based Roku remote control and live ECP command deck built for macOS, Windows, and Linux.
+A fast, hardware-modeled Roku remote control and live ECP command deck built for macOS, Windows, and Linux.
+
+<p align="center">
+  <img src="docs/screenshots/desktop-deck.png" alt="RemoteKu Command Deck UI" width="840" />
+</p>
 
 ---
 
@@ -44,10 +48,16 @@ chmod +x RemoteKu-2.0.0.AppImage
 
 ## What's New in v2.0
 
-- **Side-by-Side Desktop Command Deck**: On desktop viewports, the physical tactile remote sits alongside a live **Companion Dock** featuring a **Live TV Keyboard**, **Searchable Channel Launcher**, and **Roku TV Input & Power Controls**.
+- **Floating Picture-in-Picture Mini Remote (`⌘⇧M`)**: Collapse the app into a sleek, compact pocket remote that floats beside your active windows without taking up screen real estate.
+- **Side-by-Side Desktop Command Deck**: On desktop viewports, the hardware-modeled remote sits alongside a live **Companion Dock** featuring a **Live TV Keyboard**, **Searchable Channel Launcher**, and **Roku TV Input & Power Controls**.
+
+<p align="center">
+  <img src="docs/screenshots/mini-mode.png" alt="RemoteKu Floating Mini Remote Mode" width="260" />
+</p>
 - **Live TV Keyboard (`Lit_<char>` Streaming)**: Type search queries, usernames, or passwords directly from your Mac/PC keyboard onto your Roku screen. Toggle **Live Stream** to transmit every character (including Backspace and Enter) in real time as you type, or send full strings at once.
 - **Real Roku Channel Icons & Instant Search**: Automatically fetches and caches official channel artwork (`/query/icon/<appId>`) from your Roku device with instant search filtering.
 - **Customizable Pinned App Shortcuts (`★`)**: Pin up to 6 of your favorite installed Roku channels (`★`) to customize the 6 physical shortcut buttons directly on the remote body.
+- **Mechanical Audio Feedback & Physical Keyboard Control**: Synthesizes audible mechanical click feedback on button press and release (can be toggled in the header), and maps every remote action directly to your physical laptop keyboard (`W/A/S/D`, arrows, `Enter`, `Space`, `+`/`-`).
 - **Live "Now Playing" Telemetry Bar**: Queries `/query/active-app` and `/query/media-player` to display the active channel, playback state (`PLAYING`, `PAUSED`, `SCREENSAVER`), live progress bar, and elapsed/total timecodes (`14:20 / 48:00`).
 - **Press-and-Hold Repeat**: Hold down D-pad arrows (`Up`, `Down`, `Left`, `Right`), `Volume +/-`, `Channel +/-`, or `Rewind`/`Fast Forward` for continuous repeat.
 - **Quick Header Device Switcher & <150ms Instant Reconnect**: Switch between multiple Rokus directly from the header pill (including inside **Mini Remote Mode**), and reconnect to your last-used Roku immediately on startup without waiting for SSDP multicast scans to finish.
