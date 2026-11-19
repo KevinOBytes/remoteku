@@ -559,6 +559,42 @@ class RokuClient {
     return true;
   }
 
+  // Trigger Roku Universal Search across channels and movies (/search/browse)
+  async searchBrowse(keyword, options = {}) {
+    if (!this.currentDevice) {
+      throw new Error('No device selected');
+    }
+    const cleanKeyword = String(keyword ?? '').trim();
+    if (!cleanKeyword) {
+      throw new Error('Search keyword cannot be empty');
+    }
+
+    const params = new URLSearchParams();
+    params.set('keyword', cleanKeyword);
+
+    if (options.title) {
+      params.set('title', String(options.title).trim());
+    }
+    if (options.type) {
+      params.set('type', String(options.type).trim());
+    }
+    if (options.season) {
+      params.set('season', String(options.season).trim());
+    }
+    if (typeof options.launch === 'boolean') {
+      params.set('launch', options.launch ? 'true' : 'false');
+    }
+    if (options.provider) {
+      params.set('provider', String(options.provider).trim());
+    }
+    if (options.providerId) {
+      params.set('provider-id', String(options.providerId).trim());
+    }
+
+    const endpoint = `/search/browse?${params.toString()}`;
+    return await this.postWithRetry(endpoint, `searching for "${cleanKeyword}"`);
+  }
+
   // Fetch an app's icon as a cached base64 data URI
   async getAppIcon(appId) {
     if (!this.currentDevice || !appId) {

@@ -7,13 +7,21 @@ const {
   togglePinnedAppId,
   mergePinnedApps,
   filterApps,
-  getAppMonogram
+  getAppMonogram,
+  formatDeviceDisplayName,
+  formatInputDisplayName,
+  formatSleepTimerCountdown
 } = window.RemoteKuLogic;
 
 // DOM Elements
 const deviceSelect = document.getElementById('device-select');
 const headerDeviceSelect = document.getElementById('header-device-select');
 const headerRescanBtn = document.getElementById('header-rescan-btn');
+const editDeviceNicknameBtn = document.getElementById('edit-device-nickname-btn');
+const sleepTimerBtn = document.getElementById('sleep-timer-btn');
+const sleepTimerLabel = document.getElementById('sleep-timer-label');
+const updateBannerLink = document.getElementById('update-banner-link');
+const updateBannerText = document.getElementById('update-banner-text');
 const refreshDevicesBtn = document.getElementById('refresh-devices');
 const manualHostInput = document.getElementById('manual-host');
 const manualConnectBtn = document.getElementById('manual-connect');
@@ -42,6 +50,7 @@ const statusDot = document.getElementById('status-dot');
 const currentDeviceLabel = document.getElementById('current-device');
 const playPauseToggle = document.getElementById('play-pause-toggle');
 const remoteAppShortcuts = document.getElementById('remote-app-shortcuts');
+const remoteControlEl = document.querySelector('.remote-control');
 
 // Live TV Keyboard Elements
 const rokuTextInput = document.getElementById('roku-text-input');
@@ -50,7 +59,15 @@ const rokuLiveTypeToggle = document.getElementById('roku-live-type-toggle');
 const rokuTextBackspaceBtn = document.getElementById('roku-text-backspace');
 const rokuTextEnterBtn = document.getElementById('roku-text-enter');
 const rokuTextSpaceBtn = document.getElementById('roku-text-space');
+const rokuTextPasteBtn = document.getElementById('roku-text-paste');
 const rokuTextClearBtn = document.getElementById('roku-text-clear');
+
+// Universal Search Elements
+const rokuSearchBrowseInput = document.getElementById('roku-search-browse-input');
+const rokuSearchBrowseSendBtn = document.getElementById('roku-search-browse-send');
+
+// TV Inputs & Power
+const editInputsBtn = document.getElementById('edit-inputs-btn');
 
 // Now Playing Elements
 const nowPlayingAvatar = document.getElementById('now-playing-avatar');
@@ -66,6 +83,19 @@ const shortcutsHelpBtn = document.getElementById('shortcuts-help-btn');
 const shortcutsModal = document.getElementById('shortcuts-modal');
 const closeShortcutsModalBtn = document.getElementById('close-shortcuts-modal');
 const miniModeToggleBtn = document.getElementById('mini-mode-toggle');
+
+// Nickname Modal Elements
+const nicknameModal = document.getElementById('nickname-modal');
+const closeNicknameModalBtn = document.getElementById('close-nickname-modal');
+const nicknameForm = document.getElementById('nickname-form');
+const nicknameInput = document.getElementById('nickname-input');
+const clearNicknameBtn = document.getElementById('clear-nickname-btn');
+
+// Input Labels Modal Elements
+const inputsModal = document.getElementById('inputs-modal');
+const closeInputsModalBtn = document.getElementById('close-inputs-modal');
+const inputsForm = document.getElementById('inputs-form');
+const resetInputsBtn = document.getElementById('reset-inputs-btn');
 
 // Constants
 const STATUS_DISPLAY_DURATION = 3000;
@@ -93,6 +123,7 @@ const DISCOVERY_OPTIONS = { fallbackScan: true, throwOnPermission: true };
 let isPlaying = false;
 let isMiniMode = false;
 let hasConnectedDevice = false;
+let activeDeviceObject = null;
 let soundEffectsEnabled = true;
 let statusTimeoutId = null;
 let lastConnectError = null;
@@ -103,6 +134,16 @@ let currentFilterMode = 'all';
 let appSearchQuery = '';
 let audioCtx = null;
 const iconDataCache = new Map();
+
+// Customization & Timer State
+let deviceNicknames = {};
+let customInputLabels = {};
+let sleepTimerIndex = 0;
+let sleepTimerRemainingSec = 0;
+let sleepTimerIntervalId = null;
+const SLEEP_TIMER_PRESETS = [0, 15, 30, 45, 60, 90];
+let lastWheelTime = 0;
+const WHEEL_THROTTLE_MS = 130;
 
 // Synthesized subtle tactile click using Web Audio API
 function playTactileClick(frequency = 190) {
@@ -560,14 +601,28 @@ async function refreshNowPlaying() {
 
 function updateCurrentDevice(device) {
   hasConnectedDevice = Boolean(device && device.host);
+  activeDeviceObject = device || null;
   if (!currentDeviceLabel) return;
   if (!device) {
     currentDeviceLabel.textContent = 'Not connected';
     return;
   }
-  const friendly = device.friendlyName || 'Roku Device';
-  const ip = device.ip || device.host || '';
-  currentDeviceLabel.textContent = ip ? `${friendly} · ${ip}` : friendly;
+  currentDeviceLabel.textContent = formatDeviceDisplayName(device, deviceNicknames);
+}
+
+function renderTvInputLabels() {
+  const inputButtons = document.querySelectorAll('.tv-inputs-grid [data-key]');
+  inputButtons.forEach((btn) => {
+    const key = btn.dataset.key;
+    if (!key || key.startsWith('Power')) return;
+    const displayName = formatInputDisplayName(key, customInputLabels);
+    const span = btn.querySelector('span');
+    if (span) {
+      span.textContent = displayName;
+    } else {
+      btn.textContent = displayName;
+    }
+  });
 }
 
 function saveLastDevice(device) {
@@ -609,7 +664,7 @@ function renderDeviceOptions(devices, selectedHost) {
     devices.forEach((device, index) => {
       const option = document.createElement('option');
       option.value = String(index);
-      option.textContent = `${device.friendlyName || 'Roku Device'} (${device.ip || device.host})`;
+      option.textContent = formatDeviceDisplayName(device, deviceNicknames);
       selectEl.appendChild(option);
     });
     if (selectedHost) {
@@ -1062,6 +1117,66 @@ rokuTextClearBtn?.addEventListener('click', () => {
   }
 });
 
+async function pasteClipboardAndStream() {
+  playTactileClick(220);
+  try {
+    const text = await rokuAPI.readClipboard?.();
+    if (!text || !text.trim()) {
+      setStatus('Clipboard is empty or contains no text.', { state: 'warning' });
+      return;
+    }
+    const cleanText = text.replace(/[\r\n]+/g, ' ').trim();
+    if (rokuTextInput) {
+      rokuTextInput.value = cleanText;
+      rokuTextInput.dataset.liveStreamed = 'true';
+    }
+    setStatus(`Streaming clipboard (${cleanText.length} chars) to Roku…`, { duration: 0, state: 'info' });
+    const success = await rokuAPI.sendText(cleanText);
+    if (success) {
+      setStatus('Streamed clipboard to Roku', { state: 'success' });
+    } else {
+      setStatus('Failed to stream clipboard text to Roku', { state: 'error' });
+    }
+  } catch (_error) {
+    setStatus('Unable to read clipboard or connect to Roku', { state: 'warning' });
+  }
+}
+
+rokuTextPasteBtn?.addEventListener('click', pasteClipboardAndStream);
+
+async function performUniversalSearch() {
+  const query = (rokuSearchBrowseInput?.value || '').trim();
+  if (!query) {
+    setStatus('Enter a title, show, actor, or genre to search.', { state: 'warning' });
+    rokuSearchBrowseInput?.focus();
+    return;
+  }
+  playTactileClick(220);
+  setStatus(`Searching Roku for "${query}"…`, { duration: 0, state: 'info' });
+  try {
+    const success = await rokuAPI.searchBrowse(query, { launch: true });
+    if (success) {
+      setStatus(`Searched "${query}" on TV`, { state: 'success' });
+    } else {
+      setStatus('Failed to perform Roku search', { state: 'error' });
+    }
+  } catch (error) {
+    const isNoDeviceSelected = error?.message === 'No device selected';
+    setStatus(
+      isNoDeviceSelected ? 'Connect to a Roku first.' : 'Error sending search request',
+      { state: isNoDeviceSelected ? 'warning' : 'error' }
+    );
+  }
+}
+
+rokuSearchBrowseSendBtn?.addEventListener('click', performUniversalSearch);
+rokuSearchBrowseInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    performUniversalSearch();
+  }
+});
+
 // Tabs Navigation
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabPanes = document.querySelectorAll('.tab-pane');
@@ -1166,6 +1281,214 @@ remoteAppShortcuts?.addEventListener('click', async (e) => {
   await launchRokuApp(appId, appName, button);
 });
 
+// Trackpad / Mouse Wheel Volume Scroll Gesture on Remote Control
+remoteControlEl?.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const now = Date.now();
+  if (now - lastWheelTime < WHEEL_THROTTLE_MS) {
+    return;
+  }
+  if (Math.abs(e.deltaY) < 3) {
+    return;
+  }
+  lastWheelTime = now;
+  if (e.deltaY < 0) {
+    sendRemoteKey('VolumeUp', { pendingMessage: 'Vol +' });
+  } else {
+    sendRemoteKey('VolumeDown', { pendingMessage: 'Vol -' });
+  }
+}, { passive: false });
+
+// Sleep Timer Controller
+function setSleepTimerMinutes(minutes) {
+  if (sleepTimerIntervalId) {
+    clearInterval(sleepTimerIntervalId);
+    sleepTimerIntervalId = null;
+  }
+
+  if (minutes <= 0) {
+    sleepTimerRemainingSec = 0;
+    sleepTimerIndex = 0;
+    sleepTimerBtn?.classList.remove('active');
+    if (sleepTimerLabel) {
+      sleepTimerLabel.textContent = 'Timer Off';
+    }
+    setStatus('Sleep timer disabled', { state: 'info', duration: 2000 });
+    return;
+  }
+
+  sleepTimerRemainingSec = minutes * 60;
+  sleepTimerBtn?.classList.add('active');
+  if (sleepTimerLabel) {
+    sleepTimerLabel.textContent = formatSleepTimerCountdown(sleepTimerRemainingSec);
+  }
+  setStatus(`Sleep timer set to ${minutes} min`, { state: 'success', duration: 2500 });
+
+  sleepTimerIntervalId = setInterval(async () => {
+    sleepTimerRemainingSec -= 1;
+    if (sleepTimerRemainingSec > 0) {
+      if (sleepTimerLabel) {
+        sleepTimerLabel.textContent = formatSleepTimerCountdown(sleepTimerRemainingSec);
+      }
+    } else {
+      clearInterval(sleepTimerIntervalId);
+      sleepTimerIntervalId = null;
+      sleepTimerIndex = 0;
+      sleepTimerBtn?.classList.remove('active');
+      if (sleepTimerLabel) {
+        sleepTimerLabel.textContent = 'Timer Off';
+      }
+      setStatus('Sleep timer expired. Powering off Roku TV…', { state: 'warning', duration: 5000 });
+      await sendRemoteKey('PowerOff', { pendingMessage: 'Powering off Roku TV…' });
+    }
+  }, 1000);
+}
+
+sleepTimerBtn?.addEventListener('click', () => {
+  playTactileClick(250);
+  sleepTimerIndex = (sleepTimerIndex + 1) % SLEEP_TIMER_PRESETS.length;
+  setSleepTimerMinutes(SLEEP_TIMER_PRESETS[sleepTimerIndex]);
+});
+
+// Device Nickname Modal
+function toggleNicknameModal(forceOpen) {
+  if (!nicknameModal) return;
+  const isHidden = nicknameModal.classList.contains('hidden');
+  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : isHidden;
+  nicknameModal.classList.toggle('hidden', !shouldOpen);
+}
+
+editDeviceNicknameBtn?.addEventListener('click', () => {
+  playTactileClick(220);
+  if (!activeDeviceObject?.host) {
+    setStatus('Connect to a Roku device first to set a nickname.', { state: 'warning' });
+    return;
+  }
+  const idCandidates = [
+    activeDeviceObject.serialNumber,
+    activeDeviceObject.id,
+    activeDeviceObject.ip,
+    activeDeviceObject.host
+  ].filter(Boolean);
+  if (nicknameInput) {
+    let currentNick = '';
+    for (const id of idCandidates) {
+      if (deviceNicknames[id]) {
+        currentNick = deviceNicknames[id];
+        break;
+      }
+    }
+    nicknameInput.value = currentNick;
+  }
+  toggleNicknameModal(true);
+  nicknameInput?.focus();
+});
+
+closeNicknameModalBtn?.addEventListener('click', () => toggleNicknameModal(false));
+nicknameModal?.addEventListener('click', (e) => {
+  if (e.target === nicknameModal) toggleNicknameModal(false);
+});
+
+nicknameForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!activeDeviceObject) return;
+  const idCandidates = [
+    activeDeviceObject.serialNumber,
+    activeDeviceObject.id,
+    activeDeviceObject.ip,
+    activeDeviceObject.host
+  ].filter(Boolean);
+  const primaryId = idCandidates[0] || activeDeviceObject.host;
+  const newNick = (nicknameInput?.value || '').trim();
+
+  for (const id of idCandidates) {
+    deviceNicknames[id] = newNick;
+  }
+  await rokuAPI.setDeviceNickname?.(primaryId, newNick);
+  const devices = await rokuAPI.getDevices();
+  renderDeviceOptions(devices, activeDeviceObject.host);
+  updateCurrentDevice(activeDeviceObject);
+  toggleNicknameModal(false);
+  setStatus(newNick ? `Nickname set to "${newNick}"` : 'Nickname reset to default', { state: 'success' });
+});
+
+clearNicknameBtn?.addEventListener('click', async () => {
+  if (!activeDeviceObject) return;
+  const idCandidates = [
+    activeDeviceObject.serialNumber,
+    activeDeviceObject.id,
+    activeDeviceObject.ip,
+    activeDeviceObject.host
+  ].filter(Boolean);
+  const primaryId = idCandidates[0] || activeDeviceObject.host;
+  for (const id of idCandidates) {
+    delete deviceNicknames[id];
+  }
+  if (nicknameInput) nicknameInput.value = '';
+  await rokuAPI.setDeviceNickname?.(primaryId, '');
+  const devices = await rokuAPI.getDevices();
+  renderDeviceOptions(devices, activeDeviceObject.host);
+  updateCurrentDevice(activeDeviceObject);
+  toggleNicknameModal(false);
+  setStatus('Reset nickname to default', { state: 'info' });
+});
+
+// Custom TV Input Labels Modal
+const INPUT_CONFIG_FIELDS = [
+  { id: 'input-label-hdmi1', key: 'InputHDMI1' },
+  { id: 'input-label-hdmi2', key: 'InputHDMI2' },
+  { id: 'input-label-hdmi3', key: 'InputHDMI3' },
+  { id: 'input-label-hdmi4', key: 'InputHDMI4' },
+  { id: 'input-label-tuner', key: 'InputTuner' },
+  { id: 'input-label-av1', key: 'InputAV1' }
+];
+
+function toggleInputsModal(forceOpen) {
+  if (!inputsModal) return;
+  const isHidden = inputsModal.classList.contains('hidden');
+  const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : isHidden;
+  inputsModal.classList.toggle('hidden', !shouldOpen);
+}
+
+editInputsBtn?.addEventListener('click', () => {
+  playTactileClick(220);
+  INPUT_CONFIG_FIELDS.forEach(({ id, key }) => {
+    const el = document.getElementById(id);
+    if (el) el.value = customInputLabels[key] || '';
+  });
+  toggleInputsModal(true);
+});
+
+closeInputsModalBtn?.addEventListener('click', () => toggleInputsModal(false));
+inputsModal?.addEventListener('click', (e) => {
+  if (e.target === inputsModal) toggleInputsModal(false);
+});
+
+inputsForm?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  for (const { id, key } of INPUT_CONFIG_FIELDS) {
+    const el = document.getElementById(id);
+    const val = el ? el.value.trim() : '';
+    customInputLabels[key] = val;
+    await rokuAPI.setCustomInputLabel?.(key, val);
+  }
+  renderTvInputLabels();
+  toggleInputsModal(false);
+  setStatus('Custom TV input labels saved', { state: 'success' });
+});
+
+resetInputsBtn?.addEventListener('click', async () => {
+  for (const { id, key } of INPUT_CONFIG_FIELDS) {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+    delete customInputLabels[key];
+    await rokuAPI.setCustomInputLabel?.(key, '');
+  }
+  renderTvInputLabels();
+  toggleInputsModal(false);
+  setStatus('Reset input labels to default', { state: 'info' });
+});
+
 // Header Actions & Modals
 function setMiniModeState(nextMini, notifyMain = true) {
   isMiniMode = Boolean(nextMini);
@@ -1216,6 +1539,13 @@ function handleUiAction(action, value) {
     const targetInput = onAppsTab ? appsSearchInput : dockAppsSearchInput;
     targetInput?.focus();
     targetInput?.select();
+  } else if (action === 'focus-universal-search') {
+    if (isMiniMode) setMiniModeState(false, true);
+    activateTab('tab-remote');
+    rokuSearchBrowseInput?.focus();
+    rokuSearchBrowseInput?.select();
+  } else if (action === 'paste-clipboard-stream') {
+    pasteClipboardAndStream();
   } else if (action === 'rescan') {
     triggerRescan();
   } else if (action === 'toggle-mini-mode') {
@@ -1234,12 +1564,23 @@ document.addEventListener('keydown', async (e) => {
     toggleShortcutsModal(false);
     return;
   }
+  if (!nicknameModal?.classList.contains('hidden') && e.key === 'Escape') {
+    e.preventDefault();
+    toggleNicknameModal(false);
+    return;
+  }
+  if (!inputsModal?.classList.contains('hidden') && e.key === 'Escape') {
+    e.preventDefault();
+    toggleInputsModal(false);
+    return;
+  }
 
   if (isTextEntryContext(e.target)) {
-    // Still allow Cmd+K / Cmd+F / Cmd+Shift+M while inside inputs
+    // Still allow Cmd+K / Cmd+F / Cmd+Shift+M / Cmd+Shift+S / Cmd+V (when streaming)
     if (e.metaKey || e.ctrlKey) {
       const resolved = resolveShortcutKey(e);
-      if (resolved?.type === 'ui') {
+      // For Cmd+V inside an input field, let native paste handle it!
+      if (resolved?.type === 'ui' && resolved.action !== 'paste-clipboard-stream') {
         e.preventDefault();
         handleUiAction(resolved.action);
       }
@@ -1303,6 +1644,20 @@ document.addEventListener('keydown', async (e) => {
   }
 });
 
+// Check for In-App Updates against GitHub Releases
+async function checkForAppUpdates() {
+  try {
+    const update = await rokuAPI.checkForUpdates?.();
+    if (update?.hasUpdate && updateBannerLink && updateBannerText) {
+      updateBannerText.textContent = `v${update.latestVersion} Available`;
+      updateBannerLink.href = update.releaseUrl || 'https://github.com/kevonche/remoteku/releases';
+      updateBannerLink.classList.remove('hidden');
+    }
+  } catch (_error) {
+    // Silently ignore update check errors
+  }
+}
+
 // Subscribe to Main Process Events (Menu Bar Tray, Touch Bar, System Resume)
 rokuAPI.onMenuAction?.((payload) => {
   if (payload?.action) {
@@ -1347,9 +1702,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (winState?.lastDevice?.host) {
       mainSavedDevice = winState.lastDevice;
     }
+    if (winState?.deviceNicknames) {
+      deviceNicknames = { ...winState.deviceNicknames };
+    }
+    if (winState?.customInputLabels) {
+      customInputLabels = { ...winState.customInputLabels };
+      renderTvInputLabels();
+    }
   } catch (_error) {
     // Ignore
   }
+
+  checkForAppUpdates();
 
   // Instant reconnect to last known Roku in <150ms before waiting for SSDP multicast timeout
   const savedDevice = loadLastDevice() || mainSavedDevice;

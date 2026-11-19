@@ -18,10 +18,15 @@ contextBridge.exposeInMainWorld('rokuAPI', {
   keyDown: (key) => ipcRenderer.invoke('roku:key-down', key),
   keyUp: (key) => ipcRenderer.invoke('roku:key-up', key),
   sendText: (text, options) => ipcRenderer.invoke('roku:send-text', text, options),
+  searchBrowse: (keyword, options) => ipcRenderer.invoke('roku:search-browse', keyword, options),
   getNowPlaying: () => ipcRenderer.invoke('roku:get-now-playing'),
   toggleMiniMode: (isMiniMode) => ipcRenderer.invoke('window:toggle-mini-mode', isMiniMode),
   getWindowState: () => ipcRenderer.invoke('window:get-state'),
   updatePreferences: (prefs) => ipcRenderer.invoke('window:update-preferences', prefs),
+  setDeviceNickname: (deviceIdentifier, nickname) => ipcRenderer.invoke('window:set-device-nickname', deviceIdentifier, nickname),
+  setCustomInputLabel: (inputKey, label) => ipcRenderer.invoke('window:set-custom-input-label', inputKey, label),
+  readClipboard: () => ipcRenderer.invoke('system:read-clipboard'),
+  checkForUpdates: () => ipcRenderer.invoke('system:check-for-updates'),
   openNetworkSettings: () => ipcRenderer.invoke('system:open-network-settings'),
   onSystemResume: (callback) => {
     if (typeof callback !== 'function') return () => {};

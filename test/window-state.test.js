@@ -84,9 +84,19 @@ test('WindowStateManager handles corrupt JSON gracefully and persists preference
     ip: '192.168.0.161',
     friendlyName: '50" TCL Roku TV'
   });
+  manager.setDeviceNickname('192.168.0.161', 'Living Room OLED');
+  manager.setCustomInputLabel('InputHDMI1', 'PlayStation 5');
+
   const withDevice = new WindowStateManager(filePath).load();
   assert.equal(withDevice.lastDevice.host, 'http://192.168.0.161:8060');
   assert.equal(withDevice.lastDevice.friendlyName, '50" TCL Roku TV');
+  assert.equal(withDevice.deviceNicknames['192.168.0.161'], 'Living Room OLED');
+  assert.equal(withDevice.customInputLabels['InputHDMI1'], 'PlayStation 5');
+
+  // Deleting nickname
+  manager.setDeviceNickname('192.168.0.161', '');
+  const cleared = new WindowStateManager(filePath).load();
+  assert.equal(cleared.deviceNicknames['192.168.0.161'], undefined);
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 });

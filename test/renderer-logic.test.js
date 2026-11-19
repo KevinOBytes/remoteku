@@ -8,7 +8,10 @@ const {
   mergePinnedApps,
   togglePinnedAppId,
   filterApps,
-  getAppMonogram
+  getAppMonogram,
+  formatDeviceDisplayName,
+  formatInputDisplayName,
+  formatSleepTimerCountdown
 } = require('../renderer-logic');
 
 test('normalizeHostInput adds default scheme and 8060 port and rejects invalid hosts', () => {
@@ -59,10 +62,11 @@ test('resolveShortcutKey maps remote keys and UI shortcuts while guarding modifi
   assert.deepEqual(resolveShortcutKey({ key: '/' }), { type: 'ui', action: 'focus-keyboard' });
   assert.deepEqual(resolveShortcutKey({ key: 'k', metaKey: true }), { type: 'ui', action: 'focus-keyboard' });
   assert.deepEqual(resolveShortcutKey({ key: 'f', ctrlKey: true }), { type: 'ui', action: 'focus-apps-search' });
+  assert.deepEqual(resolveShortcutKey({ key: 'v', metaKey: true }), { type: 'ui', action: 'paste-clipboard-stream' });
+  assert.deepEqual(resolveShortcutKey({ key: 's', metaKey: true, shiftKey: true }), { type: 'ui', action: 'focus-universal-search' });
 
-  // Standard system shortcuts like Cmd+C or Cmd+V must not fire Roku keys
+  // Cmd+C or Alt+M must not fire Roku keys
   assert.equal(resolveShortcutKey({ key: 'c', metaKey: true }), null);
-  assert.equal(resolveShortcutKey({ key: 'v', ctrlKey: true }), null);
   assert.equal(resolveShortcutKey({ key: 'm', altKey: true }), null);
 });
 
@@ -117,4 +121,38 @@ test('getAppMonogram builds clean monograms for app tiles', () => {
   assert.equal(getAppMonogram('Prime Video'), 'PV');
   assert.equal(getAppMonogram('Disney+'), 'D+');
   assert.equal(getAppMonogram(''), 'RK');
+});
+
+test('formatDeviceDisplayName respects nicknames by IP, host, or ID with fallbacks', () => {
+  const device = {
+    ip: '192.168.0.150',
+    host: 'http://192.168.0.150:8060',
+    friendlyName: '55" TCL Roku TV',
+    modelName: '55S425'
+  };
+
+  // Default fallback
+  assert.equal(formatDeviceDisplayName(device, {}), '55" TCL Roku TV');
+  assert.equal(formatDeviceDisplayName(null), 'No Device');
+
+  // Nickname by IP
+  assert.equal(formatDeviceDisplayName(device, { '192.168.0.150': 'Living Room OLED' }), 'Living Room OLED');
+
+  // Nickname by Host
+  assert.equal(formatDeviceDisplayName(device, { 'http://192.168.0.150:8060': 'Basement Theater' }), 'Basement Theater');
+});
+
+test('formatInputDisplayName formats custom TV inputs with standard defaults', () => {
+  assert.equal(formatInputDisplayName('InputHDMI1'), 'HDMI 1');
+  assert.equal(formatInputDisplayName('InputTuner'), 'Live TV');
+  assert.equal(formatInputDisplayName('InputHDMI2', { InputHDMI2: 'PlayStation 5' }), 'PlayStation 5');
+  assert.equal(formatInputDisplayName('InputAV1', { InputAV1: 'Retro VCR' }), 'Retro VCR');
+});
+
+test('formatSleepTimerCountdown formats seconds into MM:SS or Off', () => {
+  assert.equal(formatSleepTimerCountdown(0), 'Off');
+  assert.equal(formatSleepTimerCountdown(-10), 'Off');
+  assert.equal(formatSleepTimerCountdown(900), '15:00');
+  assert.equal(formatSleepTimerCountdown(83), '1:23');
+  assert.equal(formatSleepTimerCountdown(3600), '60:00');
 });

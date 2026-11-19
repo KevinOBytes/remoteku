@@ -29,7 +29,9 @@ class WindowStateManager {
       alwaysOnTop: false,
       closeToTray: true,
       soundEffects: true,
-      lastDevice: null
+      lastDevice: null,
+      deviceNicknames: {},
+      customInputLabels: {}
     };
   }
 
@@ -69,7 +71,13 @@ class WindowStateManager {
             soundEffects: parsed.soundEffects !== undefined ? Boolean(parsed.soundEffects) : true,
             lastDevice: parsed.lastDevice && typeof parsed.lastDevice.host === 'string'
               ? { ...parsed.lastDevice }
-              : null
+              : null,
+            deviceNicknames: parsed.deviceNicknames && typeof parsed.deviceNicknames === 'object'
+              ? { ...parsed.deviceNicknames }
+              : {},
+            customInputLabels: parsed.customInputLabels && typeof parsed.customInputLabels === 'object'
+              ? { ...parsed.customInputLabels }
+              : {}
           };
           return this.getState();
         }
@@ -169,6 +177,38 @@ class WindowStateManager {
     if (prefs.lastDevice && typeof prefs.lastDevice.host === 'string') {
       this.state.lastDevice = { ...prefs.lastDevice };
     }
+    if (prefs.deviceNicknames && typeof prefs.deviceNicknames === 'object') {
+      this.state.deviceNicknames = { ...this.state.deviceNicknames, ...prefs.deviceNicknames };
+    }
+    if (prefs.customInputLabels && typeof prefs.customInputLabels === 'object') {
+      this.state.customInputLabels = { ...this.state.customInputLabels, ...prefs.customInputLabels };
+    }
+    return this.save();
+  }
+
+  setDeviceNickname(deviceIdentifier, nickname) {
+    if (!deviceIdentifier) return this.getState();
+    const cleanNick = String(nickname ?? '').trim();
+    const next = { ...this.state.deviceNicknames };
+    if (!cleanNick) {
+      delete next[deviceIdentifier];
+    } else {
+      next[deviceIdentifier] = cleanNick;
+    }
+    this.state.deviceNicknames = next;
+    return this.save();
+  }
+
+  setCustomInputLabel(inputKey, label) {
+    if (!inputKey) return this.getState();
+    const cleanLabel = String(label ?? '').trim();
+    const next = { ...this.state.customInputLabels };
+    if (!cleanLabel) {
+      delete next[inputKey];
+    } else {
+      next[inputKey] = cleanLabel;
+    }
+    this.state.customInputLabels = next;
     return this.save();
   }
 
@@ -188,7 +228,9 @@ class WindowStateManager {
       alwaysOnTop: this.state.alwaysOnTop,
       closeToTray: this.state.closeToTray,
       soundEffects: this.state.soundEffects,
-      lastDevice: this.state.lastDevice ? { ...this.state.lastDevice } : null
+      lastDevice: this.state.lastDevice ? { ...this.state.lastDevice } : null,
+      deviceNicknames: { ...this.state.deviceNicknames },
+      customInputLabels: { ...this.state.customInputLabels }
     };
   }
 }

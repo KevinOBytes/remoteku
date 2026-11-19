@@ -114,6 +114,12 @@
       if (lower === 'r') {
         return { type: 'ui', action: 'rescan' };
       }
+      if (lower === 'v') {
+        return { type: 'ui', action: 'paste-clipboard-stream' };
+      }
+      if (lower === 's' && shift) {
+        return { type: 'ui', action: 'focus-universal-search' };
+      }
       if (lower === 'm' && shift) {
         return { type: 'ui', action: 'toggle-mini-mode' };
       }
@@ -308,6 +314,43 @@
     return cleaned.slice(0, 1).toUpperCase();
   }
 
+  function formatDeviceDisplayName(device, nicknames = {}) {
+    if (!device) return 'No Device';
+    const idKey = device.id || device.serialNumber;
+    const ipKey = device.ip;
+    const hostKey = device.host;
+    if (nicknames && typeof nicknames === 'object') {
+      if (idKey && nicknames[idKey]) return nicknames[idKey];
+      if (ipKey && nicknames[ipKey]) return nicknames[ipKey];
+      if (hostKey && nicknames[hostKey]) return nicknames[hostKey];
+    }
+    return device.friendlyName || device.userDeviceName || device.modelName || 'Roku Device';
+  }
+
+  function formatInputDisplayName(inputKey, customLabels = {}) {
+    if (customLabels && typeof customLabels === 'object' && customLabels[inputKey]) {
+      return customLabels[inputKey];
+    }
+    const defaults = {
+      InputHDMI1: 'HDMI 1',
+      InputHDMI2: 'HDMI 2',
+      InputHDMI3: 'HDMI 3',
+      InputHDMI4: 'HDMI 4',
+      InputTuner: 'Live TV',
+      InputAV1: 'AV Input'
+    };
+    return defaults[inputKey] || inputKey;
+  }
+
+  function formatSleepTimerCountdown(remainingSeconds) {
+    if (typeof remainingSeconds !== 'number' || remainingSeconds <= 0) {
+      return 'Off';
+    }
+    const mins = Math.floor(remainingSeconds / 60);
+    const secs = remainingSeconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  }
+
   return {
     DEFAULT_FAVORITES,
     CUSTOM_PIN_PALETTE,
@@ -319,6 +362,9 @@
     togglePinnedAppId,
     mergePinnedApps,
     filterApps,
-    getAppMonogram
+    getAppMonogram,
+    formatDeviceDisplayName,
+    formatInputDisplayName,
+    formatSleepTimerCountdown
   };
 });

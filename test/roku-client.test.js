@@ -1231,3 +1231,53 @@ test('discoverDevices treats EHOSTUNREACH on multicast send as macOS Local Netwo
     (error) => error.code === 'EACCES' && /Local network access blocked/.test(error.message)
   );
 });
+
+test('searchBrowse validates inputs and posts to /search/browse with parameters', async (t) => {
+  const client = new RokuClient();
+
+  // No device selected
+  await assert.rejects(
+    client.searchBrowse('Inception'),
+    (error) => error.message === 'No device selected'
+  );
+
+  client.currentDevice = { host: 'http://192.168.0.100:8060' };
+
+  // Empty keyword
+  await assert.rejects(
+    client.searchBrowse('   '),
+    (error) => error.message === 'Search keyword cannot be empty'
+  );
+
+  let requestedEndpoint = null;
+  client.postWithRetry = async (endpoint) => {
+    requestedEndpoint = endpoint;
+    return true;
+  };
+
+  // Basic keyword
+  const ok1 = await client.searchBrowse('Stranger Things');
+  assert.equal(ok1, true);
+  assert.equal(requestedEndpoint, '/search/browse?keyword=Stranger+Things');
+
+  // Extended options: title, type, season, launch, provider, providerId
+  const ok2 = await client.searchBrowse('Breaking Bad', {
+    title: 'Breaking Bad',
+    type: 'tv',
+    season: '1',
+    launch: true,
+    provider: 'Netflix',
+    providerId: '12'
+  });
+  assert.equal(ok2, true);
+  const parsed = new URL(`http://dummy${requestedEndpoint}`);
+  assert.equal(parsed.pathname, '/search/browse');
+  assert.equal(parsed.searchParams.get('keyword'), 'Breaking Bad');
+  assert.equal(parsed.searchParams.get('title'), 'Breaking Bad');
+  assert.equal(parsed.searchParams.get('type'), 'tv');
+  assert.equal(parsed.searchParams.get('season'), '1');
+  assert.equal(parsed.searchParams.get('launch'), 'true');
+  assert.equal(parsed.searchParams.get('provider'), 'Netflix');
+  assert.equal(parsed.searchParams.get('provider-id'), '12');
+});
+

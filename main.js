@@ -8,12 +8,14 @@ const {
   nativeImage,
   globalShortcut,
   powerMonitor,
-  shell
+  shell,
+  clipboard
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const util = require('util');
 const os = require('os');
+const axios = require('axios');
 const RokuClient = require('./roku-client');
 const WindowStateManager = require('./window-state');
 
@@ -691,6 +693,48 @@ ipcMain.handle('roku:send-text', async (_event, text, options = {}) => {
 
 ipcMain.handle('roku:get-now-playing', async () => {
   return await rokuClient.getNowPlaying();
+});
+
+ipcMain.handle('roku:search-browse', async (_event, keyword, options = {}) => {
+  return await rokuClient.searchBrowse(keyword, options);
+});
+
+ipcMain.handle('system:read-clipboard', () => {
+  return clipboard.readText();
+});
+
+ipcMain.handle('system:check-for-updates', async () => {
+  try {
+    const currentVersion = app.getVersion();
+    const response = await axios.get('https://api.github.com/repos/KevinOBytes/remoteku/releases/latest', {
+      timeout: 5000,
+      headers: { 'User-Agent': `RemoteKu/${currentVersion}` }
+    });
+    const latestRelease = response.data;
+    const latestTag = latestRelease.tag_name || '';
+    const latestVersion = latestTag.replace(/^v/, '');
+    const isNewer = Boolean(latestVersion && latestVersion !== currentVersion);
+    return {
+      hasUpdate: isNewer,
+      currentVersion,
+      latestVersion,
+      releaseUrl: latestRelease.html_url || 'https://github.com/KevinOBytes/remoteku/releases/latest',
+      releaseName: latestRelease.name || latestTag
+    };
+  } catch (err) {
+    return { hasUpdate: false, error: err.message };
+  }
+});
+
+ipcMain.handle('window:set-device-nickname', (_event, deviceIdentifier, nickname) => {
+  const next = windowStateManager.setDeviceNickname(deviceIdentifier, nickname);
+  rebuildTrayMenu();
+  buildAppMenu();
+  return next;
+});
+
+ipcMain.handle('window:set-custom-input-label', (_event, inputKey, label) => {
+  return windowStateManager.setCustomInputLabel(inputKey, label);
 });
 
 // Window State Handlers
