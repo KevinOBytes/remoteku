@@ -1,8 +1,9 @@
 cask "remoteku" do
   arch arm: "-arm64", intel: ""
 
-  version "2.0.0"
-  sha256 arm: "5b58c334c75665ac2eb0fea84a5697010471c36ca2cf32f91ebcf8f1b621ffc2"
+  version "2.1.0"
+  sha256 arm:   "8485d65f76ee044359e07e84d95fce6212ed7875dba54897cdb90923e1cd6ff8",
+         intel: "72d78397c72a86797a84a705a4d1f582b2291b426573289622a611bc2d56e17d"
 
   url "https://github.com/KevinOBytes/remoteku/releases/download/v#{version}/RemoteKu-#{version}#{arch}.dmg"
   name "RemoteKu"

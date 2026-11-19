@@ -14,9 +14,10 @@ Grab the latest release for your platform:
 
 | Platform | Download | Architecture |
 |----------|----------|--------------|
-| **macOS** | [RemoteKu-2.0.0-arm64.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.0.0-arm64.dmg) | Apple Silicon (M1/M2/M3/M4) |
-| **Windows** | [RemoteKu.Setup.2.0.0.exe](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu.Setup.2.0.0.exe) | x64 |
-| **Linux** | [RemoteKu-2.0.0.AppImage](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.0.0.AppImage) | x64 |
+| **macOS (Apple Silicon)** | [RemoteKu-2.1.0-arm64.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.0-arm64.dmg) | Apple Silicon (M1/M2/M3/M4) |
+| **macOS (Intel)** | [RemoteKu-2.1.0.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.0.dmg) | Intel 64-bit |
+| **Windows** | [RemoteKu.Setup.2.1.0.exe](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu.Setup.2.1.0.exe) | x64 |
+| **Linux** | [RemoteKu-2.1.0.AppImage](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.0.AppImage) | x64 |
 
 > [Browse all releases →](https://github.com/KevinOBytes/remoteku/releases)
 
@@ -24,9 +25,15 @@ Grab the latest release for your platform:
 
 ## Install Instructions
 
-### macOS (.dmg)
+### macOS (.dmg or Homebrew Cask)
 
-1. Download the `.dmg` file from the table above.
+**Via Homebrew Cask:**
+```bash
+brew install --cask https://raw.githubusercontent.com/KevinOBytes/remoteku/main/Casks/remoteku.rb
+```
+
+**Manual DMG:**
+1. Download the `.dmg` file matching your Mac architecture from the table above.
 2. Open the `.dmg` and drag **RemoteKu** into your **Applications** folder.
 3. On first launch, macOS Gatekeeper may warn about an unsigned binary:
    - Open **System Settings → Privacy & Security**, scroll down, and click **"Open Anyway"**, or right-click the app in Finder → **Open**.
@@ -40,9 +47,21 @@ Grab the latest release for your platform:
 ### Linux (.AppImage)
 
 ```bash
-chmod +x RemoteKu-2.0.0.AppImage
-./RemoteKu-2.0.0.AppImage
+chmod +x RemoteKu-2.1.0.AppImage
+./RemoteKu-2.1.0.AppImage
 ```
+
+---
+
+## What's New in v2.1
+
+- **Universal Roku Search (`⌘⇧S`)**: Deep content search across all streaming channels directly from desktop using Roku's native `/search/browse` protocol.
+- **Direct Clipboard Paste & Stream (`⌘V`)**: Stream passwords, URLs, or search text from your desktop clipboard straight onto the TV screen with automated newline sanitization.
+- **Sleep Timer & Auto-Off Countdown**: Cycle through 15m, 30m, 45m, 60m, 90m, or Off with live badge countdowns and automated `PowerOff` transmission on expiration.
+- **Trackpad / Mouse Wheel Volume Gesture**: Two-finger scroll over the tactile remote body smoothly steps TV volume up or down with responsive 130ms throttling and mechanical click feedback.
+- **Custom Device Nicknames & Input Labels**: Rename multiple Roku devices (e.g. "Living Room TV") and customize HDMI 1–4, Tuner, and AV labels (e.g. "PS5", "Apple TV").
+- **Universal macOS Packaging**: Full dual-architecture support for Apple Silicon (`arm64`) and Intel (`x64`) with deterministic LC_UUID patching and Homebrew Cask distribution.
+- **In-App Update Checker**: Lightweight background check against GitHub Releases API on launch with subtle notification pills.
 
 ---
 
@@ -87,8 +106,11 @@ Press `?` or `⌘/` at any time inside the app to open the interactive Keyboard 
 | `R` | Instant Replay |
 | `I` or `*` | Options / Info (`*`) |
 | `⌘K` / `Ctrl+K` or `/` | Focus Live TV Keyboard |
+| `⌘V` / `Ctrl+V` | Paste & Stream Clipboard to TV |
+| `⌘⇧S` / `Ctrl+Shift+S` | Focus Universal Roku Search |
 | `⌘F` / `Ctrl+F` | Search Installed Channels |
 | `⌘R` / `Ctrl+R` | Rescan Network for Roku Devices |
+| `Scroll` | Trackpad / Mouse Scroll on Remote for Volume |
 | `⌘⇧M` / `Ctrl+Shift+M` | Toggle Floating Mini Remote |
 | `⌘⇧R` / `Ctrl+Shift+R` | Global Summon / Hide RemoteKu Window |
 
