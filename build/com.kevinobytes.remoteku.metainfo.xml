@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.kevinobytes.remoteku</id>
+  <name>RemoteKu</name>
+  <summary>Control Roku devices and send commands over the local network</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>ISC</project_license>
+  <developer id="com.kevinobytes">
+    <name>KevinOBytes</name>
+  </developer>
+  <description>
+    <p>RemoteKu is a desktop remote control for Roku devices on your local network. The Command Deck shows device information and lets you compose and send Roku External Control Protocol commands.</p>
+  </description>
+  <launchable type="desktop-id">remoteku.desktop</launchable>
+  <url type="homepage">https://github.com/KevinOBytes/remoteku</url>
+  <url type="bugtracker">https://github.com/KevinOBytes/remoteku/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>RemoteKu Command Deck</caption>
+      <image>https://raw.githubusercontent.com/KevinOBytes/remoteku/d86e8c33e17820eb3c2a0fc58f93ee8eb9196c83/docs/screenshots/desktop-deck.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+</component>
