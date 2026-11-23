@@ -14,10 +14,10 @@ Grab the latest release for your platform:
 
 | Platform | Download | Architecture |
 |----------|----------|--------------|
-| **macOS (Apple Silicon)** | [RemoteKu-2.1.0-arm64.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.0-arm64.dmg) | Apple Silicon (M1/M2/M3/M4) |
-| **macOS (Intel)** | [RemoteKu-2.1.0.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.0.dmg) | Intel 64-bit |
-| **Windows** | [RemoteKu.Setup.2.1.0.exe](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu.Setup.2.1.0.exe) | x64 |
-| **Linux** | [RemoteKu-2.1.0.AppImage](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.0.AppImage) | x64 |
+| **macOS (Apple Silicon)** | [RemoteKu-2.1.1-arm64.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.1-arm64.dmg) | Apple Silicon (M1/M2/M3/M4) |
+| **macOS (Intel)** | [RemoteKu-2.1.1.dmg](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.1.dmg) | Intel 64-bit |
+| **Windows** | [RemoteKu.Setup.2.1.1.exe](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu.Setup.2.1.1.exe) | x64 |
+| **Linux** | [RemoteKu-2.1.1.AppImage](https://github.com/KevinOBytes/remoteku/releases/latest/download/RemoteKu-2.1.1.AppImage) | x64 |
 
 > [Browse all releases →](https://github.com/KevinOBytes/remoteku/releases)
 
@@ -47,8 +47,8 @@ brew install --cask https://raw.githubusercontent.com/KevinOBytes/remoteku/main/
 ### Linux (.AppImage)
 
 ```bash
-chmod +x RemoteKu-2.1.0.AppImage
-./RemoteKu-2.1.0.AppImage
+chmod +x RemoteKu-2.1.1.AppImage
+./RemoteKu-2.1.1.AppImage
 ```
 
 ---

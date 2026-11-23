@@ -48,12 +48,25 @@ jobs:
         if: matrix.needs_fuse
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfuse2
+          sudo apt-get install -y libfuse2 appstream zsync
 
       - name: Build application
         run: npm run dist -- ${{ matrix.builder_flag }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Validate and add AppImage metadata and update information
+        if: matrix.needs_fuse
+        shell: bash
+        run: |
+          scripts/prepare_appimage_tools.sh "$RUNNER_TEMP/remoteku-tools"
+          export PATH="$RUNNER_TEMP/remoteku-tools:$PATH"
+          shopt -s nullglob
+          images=(builds/*.AppImage)
+          [[ ${#images[@]} -eq 1 ]]
+          original="$RUNNER_TEMP/$(basename "${images[0]}")"
+          mv "${images[0]}" "$original"
+          scripts/repack_appimage.sh "$original" "${images[0]}"
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
@@ -62,5 +75,6 @@ jobs:
             builds/*.dmg
             builds/*.exe
             builds/*.AppImage
+            builds/*.AppImage.zsync
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

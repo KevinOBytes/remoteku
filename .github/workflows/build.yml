@@ -50,12 +50,25 @@ jobs:
         run: |
           # libfuse2 is required to build AppImage artifacts on Ubuntu runners
           sudo apt-get update
-          sudo apt-get install -y libfuse2
+          sudo apt-get install -y libfuse2 appstream zsync
 
       - name: Build application
         run: npm run dist -- ${{ matrix.builder_flag }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false" # disable code signing lookup in CI
+
+      - name: Validate and add AppImage metadata and update information
+        if: matrix.needs_fuse
+        shell: bash
+        run: |
+          scripts/prepare_appimage_tools.sh "$RUNNER_TEMP/remoteku-tools"
+          export PATH="$RUNNER_TEMP/remoteku-tools:$PATH"
+          shopt -s nullglob
+          images=(builds/*.AppImage)
+          [[ ${#images[@]} -eq 1 ]]
+          original="$RUNNER_TEMP/$(basename "${images[0]}")"
+          mv "${images[0]}" "$original"
+          scripts/repack_appimage.sh "$original" "${images[0]}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
